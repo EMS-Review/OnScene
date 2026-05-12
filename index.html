@@ -1877,6 +1877,20 @@
     z-index: 6; pointer-events: none; display: none;
     box-shadow: 0 0 14px rgba(255, 209, 102, 0.4);
   ">Press E</div>
+  <!-- Stage 3: Auto-radio button. Shown below the action prompt when the
+       player has finished a call and is walking back to the rig. Clicking
+       it opens the chat panel, switches to the DISPATCH tab, and types
+       out the appropriate radio script for the disposition (transport /
+       ALS handoff / refusal / treat & release). Lets new players see
+       what they should be saying without having to type it themselves. -->
+  <button id="auto-radio-btn" style="
+    position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%);
+    background: rgba(10, 10, 20, 0.92); border: 2px solid #06d6a0;
+    color: #06d6a0; padding: 8px 16px; font-family: inherit;
+    font-size: 11px; font-weight: bold; letter-spacing: 1.5px;
+    border-radius: 4px; z-index: 6; display: none; cursor: pointer;
+    box-shadow: 0 0 12px rgba(6, 214, 160, 0.35);
+  ">\uD83D\uDCFB AUTO-RADIO DISPATCH</button>
   <!-- Stage 1.5: scene safety warning banner. -->
   <div id="scene-safety" style="
     position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
@@ -11172,8 +11186,245 @@ function setupChat() {
   // Stage 1.6: hide deferred tabs until they activate via story flow.
   reorderChatTabs();
   syncChatTabsOverflow();
+  // Stage 3: Auto-radio button. Programmatically opens the chat panel,
+  // switches to the DISPATCH tab, and types out the appropriate radio
+  // script for the player's pending disposition (transport / ALS handoff
+  // / refusal / treat & release). Spaces the lines a beat apart so a
+  // new player can watch the conversation play out and learn the
+  // structure. After the script finishes, the player still needs to
+  // press E next to the rig to clear scene \u2014 this just handles
+  // the verbal handoff.
+  const autoRadioBtn = document.getElementById('auto-radio-btn');
+  if (autoRadioBtn) {
+    autoRadioBtn.addEventListener('click', () => {
+      const mode = autoRadioBtn.dataset.mode || 'dispatch';
+      const stationName = (game.role === 'CEMS') ? 'CEMS 1'
+                         : (game.role === 'AEMT') ? 'Medic 1'
+                         : 'BLS 1';
+      // ------- MODE 1: ALS handoff (medic channel) ----------------------
+      // Builds a complete handoff message covering chief complaint,
+      // vitals, history (SAMPLE/OPQRST), and interventions so the
+      // medic accepts it on the first pass. The medic chatbot scans
+      // for keyword categories \u2014 we make sure all four land.
+      if (mode === 'medic') {
+        const dispatch = (game.alsScene && game.alsScene.dispatch) ||
+                         (game.pkm && game.pkm.dispatch) || null;
+        const cc = (dispatch && dispatch.title) || 'unknown complaint';
+        // Pull the most recent vitals string if we have one, fall back
+        // to a generic-but-keyword-laden line if not.
+        const vitalsStr = (game.pkm && typeof pkmCurrentVitals === 'function'
+                          && pkmCurrentVitals()) ||
+                          'HR 90, BP 120/80, RR 16, SpO2 97%';
+        // Pull SAMPLE bits from the profile if asked, else generic.
+        const prof = (game.pkm && game.pkm.profile) || {};
+        const sampleParts = [];
+        if (prof.allergies)   sampleParts.push('Allergies: ' + prof.allergies);
+        else                  sampleParts.push('Allergies: per pt');
+        if (prof.medications) sampleParts.push('Meds: ' + prof.medications);
+        else                  sampleParts.push('Meds: per pt');
+        if (prof.pmhx)        sampleParts.push('PMHx: ' + prof.pmhx);
+        else                  sampleParts.push('PMHx: per pt');
+        // Interventions: pull from findings if available
+        const findings = (game.pkm && game.pkm.findings) || {};
+        let interventions = 'O2 via NRB applied';
+        if (findings['Treatment']) interventions = findings['Treatment'];
+        else if (findings['Treatments']) interventions = findings['Treatments'];
+        // One big handoff message. Smart medic parser counts categories.
+        const handoff =
+          stationName + ' to ALS. Patient is a ' +
+          ((dispatch && dispatch.title) ? dispatch.title : 'patient') + '. ' +
+          'Chief complaint: ' + cc + '. ' +
+          'Vitals: ' + vitalsStr + '. ' +
+          'History (SAMPLE): ' + sampleParts.join('; ') + '. ' +
+          'Interventions: ' + interventions + '. Patient is yours.';
+        // Open chat + switch to medic tab + push the message
+        panel.style.display = 'flex';
+        chatState.activeTab = 'medic';
+        if (typeof reorderChatTabs === 'function') reorderChatTabs();
+        if (typeof renderChatTabs === 'function') renderChatTabs();
+        renderChatLog();
+        try { clearChatUnread(); } catch (_e) {}
+        try {
+          chatAppend('medic', 'system',
+            '\u2014 Auto-radio: handoff to ALS \u2014');
+        } catch (_e) {}
+        setTimeout(() => {
+          chatAppend('medic', 'me', handoff);
+          // Run the message through the medic reply pipeline so it
+          // actually counts as a valid handoff.
+          try {
+            const reply = (typeof medicReply === 'function') ? medicReply(handoff.toLowerCase()) : null;
+            if (reply) {
+              setTimeout(() => chatAppend('medic', 'medic', reply), 700);
+            }
+          } catch (_e) {}
+          try { markChatUnread(); } catch (_e) {}
+        }, 400);
+        autoRadioBtn.style.display = 'none';
+        return;
+      }
+      // ------- MODE 3: refusal speech (patient channel) -----------------
+      // Builds a four-message refusal conversation that hits all four
+      // required concepts (recommendation, risks, understanding, return
+      // precautions) plus medical-command on high-risk calls. Each line
+      // gets pushed through patientReply so the patient's response +
+      // checklist progress updates live, exactly like a typed message.
+      if (mode === 'refusal') {
+        const highRisk = (typeof patientRefusalIsHighRisk === 'function') &&
+                         patientRefusalIsHighRisk();
+        const lines = [
+          // 1. Recommendation + risks (one combined message \u2014
+          // patientReply credits both from a single send)
+          'I recommend you go to the ER to be evaluated. If you refuse, ' +
+          'there\u2019s a real risk this gets worse \u2014 serious illness, ' +
+          'disability, even death are on the table.',
+          // 2. Understanding / teach-back
+          'Do you understand those risks, and do you still want to refuse?',
+          // 3. Return precautions + documentation
+          'Okay \u2014 if symptoms return or worsen, call 911 immediately or ' +
+          'go to the ER. We\u2019ll have you sign the refusal form to ' +
+          'document this.',
+        ];
+        // 4. Medical command line for high-risk only.
+        if (highRisk) {
+          lines.push('Dispatch, patch us to medical command for a high-risk refusal.');
+        }
+        // Open chat + switch to patient tab
+        panel.style.display = 'flex';
+        chatState.activeTab = 'patient';
+        if (typeof reorderChatTabs === 'function') reorderChatTabs();
+        if (typeof renderChatTabs === 'function') renderChatTabs();
+        renderChatLog();
+        try { clearChatUnread(); } catch (_e) {}
+        try {
+          chatAppend('patient', 'system',
+            '\u2014 Auto-radio: refusal speech \u2014');
+        } catch (_e) {}
+        let delay = 400;
+        lines.forEach((line) => {
+          setTimeout(() => {
+            chatAppend('patient', 'me', line);
+            // Run through the patient parser so progress + checklist update.
+            try {
+              const reply = (typeof patientReply === 'function')
+                ? patientReply(line.toLowerCase()) : null;
+              if (reply !== null && reply !== undefined) {
+                setTimeout(() => chatAppend('patient', 'patient', reply), 700);
+              }
+            } catch (_e) {}
+            try { markChatUnread(); } catch (_e) {}
+          }, delay);
+          delay += 1400;
+        });
+        autoRadioBtn.style.display = 'none';
+        return;
+      }
+      // ------- MODE 4: scene clearance (post-walk-back) -----------------
+      // Player is back at the rig, dispatch wants the formal clearance
+      // call. The dispatch parser already accepts a wide set of phrases
+      // ("show us clear", "scene clear", "we're clear", "10-8" / "10-19",
+      // etc.) so we just need to send the right thing through
+      // sendChatMessage. CEMS requires a hail first to open the radio
+      // channel \u2014 we handle that automatically.
+      if (mode === 'clear') {
+        panel.style.display = 'flex';
+        chatState.activeTab = 'dispatch';
+        if (typeof reorderChatTabs === 'function') reorderChatTabs();
+        if (typeof renderChatTabs === 'function') renderChatTabs();
+        renderChatLog();
+        try { clearChatUnread(); } catch (_e) {}
+        try {
+          chatAppend('dispatch', 'system',
+            '\u2014 Auto-radio: scene clearance \u2014');
+        } catch (_e) {}
+        const isCems = (game.role === 'CEMS');
+        // Push messages through sendChatMessage so the dispatch parser
+        // sees them exactly as if the player typed them \u2014 that's
+        // what releases the awaiting-clearance gate.
+        let delay = 400;
+        if (isCems && !chatState.cemsRadioOpen) {
+          // Hail first to open the channel.
+          setTimeout(() => {
+            sendChatMessage('Dispatch from CEMS.');
+          }, delay);
+          delay += 1400;
+        }
+        setTimeout(() => {
+          sendChatMessage('Show us clear of scene, returning to service.');
+          try { markChatUnread(); } catch (_e) {}
+          // Refresh after a beat so the button hides itself once the
+          // clearance gate releases.
+          setTimeout(() => {
+            try { _refreshAutoRadioButton(); } catch (_e) {}
+          }, 600);
+        }, delay);
+        autoRadioBtn.style.display = 'none';
+        return;
+      }
+      // ------- MODE 2: dispatch clear-scene (walk-back, original) -------
+      const kind = (game && game.pendingClearKind) || 'transport';
+      const hospitalName = (game && game.pkm && game.pkm._lastHospital &&
+                            game.pkm._lastHospital.name) ||
+                           (game && game.lastSelectedHospital &&
+                            game.lastSelectedHospital.name) || null;
+      const lines = [];
+      lines.push({ who: 'me', text: 'Dispatch from ' + stationName + '.' });
+      lines.push({ who: 'partner', text: stationName + ', go ahead.', channel: 'dispatch', from: 'dispatch' });
+      if (kind === 'als') {
+        lines.push({ who: 'me', text:
+          stationName + ' is clear of scene. ALS has taken over patient care. ' +
+          'Returning to service.' });
+        lines.push({ who: 'partner', text:
+          'Copy, ' + stationName + ' clear of scene, ALS has patient. Returning to service.',
+          channel: 'dispatch', from: 'dispatch' });
+      } else if (kind === 'refusal') {
+        lines.push({ who: 'me', text:
+          stationName + ' is clear of scene. Patient refused transport. ' +
+          'Refusal documented. Returning to service.' });
+        lines.push({ who: 'partner', text:
+          'Copy, ' + stationName + ' clear of scene with a documented refusal. Returning to service.',
+          channel: 'dispatch', from: 'dispatch' });
+      } else if (kind === 'treatRelease') {
+        lines.push({ who: 'me', text:
+          stationName + ' is clear of scene. Patient treated and released on scene. ' +
+          'Returning to service.' });
+        lines.push({ who: 'partner', text:
+          'Copy, ' + stationName + ' clear, treated and released. Returning to service.',
+          channel: 'dispatch', from: 'dispatch' });
+      } else {
+        const hosp = hospitalName || 'the receiving facility';
+        lines.push({ who: 'me', text:
+          stationName + ' is clear of scene, transporting one patient to ' + hosp + '.' });
+        lines.push({ who: 'partner', text:
+          'Copy, ' + stationName + ' clear of scene en route to ' + hosp + '.',
+          channel: 'dispatch', from: 'dispatch' });
+      }
+      panel.style.display = 'flex';
+      chatState.activeTab = 'dispatch';
+      if (typeof reorderChatTabs === 'function') reorderChatTabs();
+      if (typeof renderChatTabs === 'function') renderChatTabs();
+      renderChatLog();
+      try { clearChatUnread(); } catch (_e) {}
+      try {
+        chatAppend('dispatch', 'system',
+          '\u2014 Auto-radio: clearing scene to dispatch \u2014');
+      } catch (_e) {}
+      let delay = 400;
+      lines.forEach((l) => {
+        setTimeout(() => {
+          if (l.from === 'dispatch') {
+            chatAppend(l.channel || 'dispatch', 'dispatch', l.text);
+          } else {
+            chatAppend('dispatch', l.who, l.text);
+          }
+          try { markChatUnread(); } catch (_e) {}
+        }, delay);
+        delay += 1100;
+      });
+      autoRadioBtn.style.display = 'none';
+    });
+  }
 }
-// Show or hide the chat toggle button based on game mode.
 function updateChatVisibility() {
   const btn = document.getElementById('chat-toggle-btn');
   const panel = document.getElementById('chat-panel');
@@ -11492,6 +11743,9 @@ function recordSceneDisposition(kind, opts) {
 function markSceneAwaitingClearance() {
   if (!game.sceneState) return;
   game.sceneState.awaitingClearance = true;
+  // Stage 3: refresh the auto-radio button so it picks up the
+  // "AUTO-CLEAR SCENE" mode.
+  try { _refreshAutoRadioButton(); } catch (_eAR) {}
 }
 function isAwaitingSceneClearance() {
   return !!(game.sceneState && game.sceneState.awaitingClearance);
@@ -11643,6 +11897,9 @@ function _doActualSceneClear() {
   game.sceneState.clearedAt = Date.now();
   game.sceneState.awaitingClearance = false;
   game.sceneState = null;
+  // Stage 3: refresh the auto-radio button so it disappears now that
+  // scene clearance is done.
+  try { _refreshAutoRadioButton(); } catch (_eAR) {}
   // Release the next-call cooldown (small randomized window).
   game.cooldown = 5 + Math.random() * 10;
   setDispatchBadge('PATROL', 'patrol');
@@ -12426,12 +12683,16 @@ function startRapidTransport() {
 }
 // CEMS finished an interaction (treat & release OR called ALS). Switch to
 // "walking back to squad" phase. When near the squad, E clears scene.
-function startWalkBack(nextAction) {
+function startWalkBack(nextAction, dispositionKind) {
   // nextAction: function called once the medic re-boards the squad.
+  // Stage 3: dispositionKind ('transport' | 'als' | 'refusal' | 'treatRelease')
+  // drives the auto-radio button below the action prompt. Falls back to
+  // 'transport' if not provided so callers without the param still work.
   document.getElementById('encounter').style.display = 'none';
   document.getElementById('hospital-picker').style.display = 'none';
   game.onScenePhase = 'walkingBack';
   game.pendingClearAction = nextAction;
+  game.pendingClearKind = dispositionKind || 'transport';
   game.mode = 'onScene';
   game.eDebounce = 0.25;
   // Stage 1.5: refresh the Dispatch HUD so it doesn't show stale call info.
@@ -12440,6 +12701,10 @@ function startWalkBack(nextAction) {
   document.getElementById('dispatch-title').textContent = 'Clearing scene';
   document.getElementById('dispatch-loc').textContent = 'Return to vehicle';
   showBanner('CLEAR SCENE — RETURN TO VEHICLE');
+  // Stage 3: walk-back phase entered \u2014 refresh the auto-radio
+  // button so it picks up the "AUTO-RADIO DISPATCH" mode (works for
+  // all roles, not just CEMS).
+  try { _refreshAutoRadioButton(); } catch (_eAR) {}
 }
 // Re-enter the parked vehicle (transport vehicles loading patient). Restores
 // player state from the parked snapshot, clears onScene state, resumes driving.
@@ -12612,7 +12877,7 @@ function spawnAlsResponse(dispatch, hospital, choice) {
       // a generic "ALS" tag. Captured here in the closure so the values
       // survive finishAlsScene() nulling chatState.medic*.
       const alsTag = { unit, medicName: name, mdContact: mdTag };
-      startWalkBack(() => completeCallAlsDelivery(dispatch, hospital, alsTag));
+      startWalkBack(() => completeCallAlsDelivery(dispatch, hospital, alsTag), 'als');
     },
   };
   // Activate the MEDIC chat channel.
@@ -12661,6 +12926,9 @@ function spawnAlsResponse(dispatch, hospital, choice) {
   game.eDebounce = 0.5;     // brief debounce so a stray E doesn't fire
   hideActionPrompt();
   hideSceneSafety();
+  // Stage 3: ALS handoff phase entered \u2014 refresh the auto-radio
+  // button so it picks up the "AUTO-FILL HANDOFF" mode.
+  try { _refreshAutoRadioButton(); } catch (_eAR) {}
 }
 // Medic's opening line. Tailors slightly to the call type so it grounds in
 // the case at hand — different from the dispatcher's flavorless ack.
@@ -12820,6 +13088,13 @@ function showActionPrompt(text) {
   el.style.display = 'block';
   _actionPromptCachedText = text;
   _actionPromptCachedShown = true;
+  // Stage 3: the auto-radio button is no longer paired with this prompt
+  // (was only firing during walkingBack with text "Press E: Clear Scene").
+  // Visibility is now driven by _refreshAutoRadioButton() based on the
+  // scene-phase + game-state, so the button works for ALL roles (not just
+  // CEMS) and in BOTH the ALS-handoff phase and the post-disposition
+  // walk-back phase.
+  try { _refreshAutoRadioButton(); } catch (_eAR) {}
 }
 function hideActionPrompt() {
   if (_actionPromptCachedShown === false) return;
@@ -12827,6 +13102,60 @@ function hideActionPrompt() {
   if (el) el.style.display = 'none';
   _actionPromptCachedShown = false;
   _actionPromptCachedText = null;
+  // Don't hide the auto-radio button when the action prompt hides \u2014
+  // during ALS handoff (`watchingAls`) the prompt is hidden but the
+  // button should still be visible. _refreshAutoRadioButton decides.
+  try { _refreshAutoRadioButton(); } catch (_eAR) {}
+}
+// Stage 3: single source of truth for auto-radio button visibility and
+// label. Driven by game state, not by the action-prompt text.
+//   - walkingBack: shows "AUTO-RADIO DISPATCH" (clear-scene script)
+//   - watchingAls + medic handoff not yet complete: shows
+//     "AUTO-FILL HANDOFF" (vitals/history/interventions to the medic)
+//   - otherwise: hidden
+function _refreshAutoRadioButton() {
+  const ar = document.getElementById('auto-radio-btn');
+  if (!ar) return;
+  const phase = game && game.onScenePhase;
+  if (phase === 'walkingBack') {
+    ar.textContent = '\uD83D\uDCFB AUTO-RADIO DISPATCH';
+    ar.dataset.mode = 'dispatch';
+    ar.style.display = 'block';
+    return;
+  }
+  if (phase === 'watchingAls' &&
+      chatState && chatState.medicActive &&
+      !chatState.medicHandoffComplete) {
+    ar.textContent = '\uD83D\uDCFB AUTO-FILL HANDOFF';
+    ar.dataset.mode = 'medic';
+    ar.style.display = 'block';
+    return;
+  }
+  // Stage 3: refusal-speech phase. Player is talking to the patient on
+  // the PATIENT tab. The auto-radio button fills in a complete refusal
+  // conversation (recommendation \u2192 risks \u2192 understanding \u2192
+  // return precautions) so a new player can see the full structure.
+  if (phase === 'refusalSpeech' &&
+      chatState && chatState.patientActive &&
+      !chatState.patientSpeechComplete) {
+    ar.textContent = '\uD83D\uDCFB AUTO-FILL REFUSAL SPEECH';
+    ar.dataset.mode = 'refusal';
+    ar.style.display = 'block';
+    return;
+  }
+  // Stage 3: post-clear awaiting-clearance state. After the player has
+  // walked back to the rig and the call is wrapped, dispatch is waiting
+  // for the formal "scene clear" radio call before the next dispatch can
+  // drop. Show the button so the player can fire that clearance message
+  // without having to type the magic phrases.
+  if (typeof isAwaitingSceneClearance === 'function' &&
+      isAwaitingSceneClearance()) {
+    ar.textContent = '\uD83D\uDCFB AUTO-CLEAR SCENE';
+    ar.dataset.mode = 'clear';
+    ar.style.display = 'block';
+    return;
+  }
+  ar.style.display = 'none';
 }
 function showSceneSafety() {
   const el = document.getElementById('scene-safety');
@@ -13019,7 +13348,19 @@ function damageProvider(idx, amount, reason) {
       }
     }
     // No other provider available → existing game-over flow.
-    if (game.crewRemaining <= 0 && typeof gameOver === 'function') {
+    // Stage 3 fix: belt-and-suspenders check. The legacy gate only fires
+    // on game.crewRemaining (a counter), which can drift if a code path
+    // decrements crewHP without also decrementing the counter, or vice
+    // versa. We now ALSO check the actual HP array \u2014 if every
+    // crew slot is at 0 HP, fire gameOver regardless of the counter.
+    // This guarantees a crew wipe ends the shift instead of letting
+    // it silently auto-reset.
+    const allDown = Array.isArray(game.crewHP) && game.crewHP.length > 0 &&
+                    game.crewHP.every(hp => hp <= 0);
+    if ((allDown || game.crewRemaining <= 0) && typeof gameOver === 'function') {
+      // Force the counter in sync so any later code that checks it sees
+      // the truth.
+      if (allDown && game.crewRemaining > 0) game.crewRemaining = 0;
       setTimeout(gameOver, 600);
     }
   }
@@ -13990,6 +14331,26 @@ function updateOnScene(dt) {
 // game over.
 function medicHit() {
   game.crewRemaining -= 1;
+  // Stage 3 fix: also zero the corresponding HP slot so the
+  // crewHP array stays in sync with the crewRemaining counter.
+  // Previously a high-speed strike only decremented the counter,
+  // leaving crewHP[activeIdx] at full \u2014 which could mask a
+  // crew-wipe condition from any later check that uses the array.
+  try {
+    if (Array.isArray(game.crewHP)) {
+      const activeIdx = (game.pkm && typeof game.pkm.activeProvider === 'number')
+                        ? game.pkm.activeProvider : 0;
+      // Find the first non-zero HP slot (the one most likely struck) and
+      // zero it. Falls back to activeIdx if all are non-zero.
+      let zeroed = false;
+      for (let i = 0; i < game.crewHP.length; i++) {
+        if (game.crewHP[i] > 0) { game.crewHP[i] = 0; zeroed = true; break; }
+      }
+      if (!zeroed && game.crewHP[activeIdx] !== undefined) {
+        game.crewHP[activeIdx] = 0;
+      }
+    }
+  } catch (_eSync) {}
   renderCrewIndicator();
   flashDamage();
   if (game.crewRemaining <= 0) {
@@ -26690,7 +27051,7 @@ function pickHospital(h) {
       }
       // Fallback: no captured patient info — go straight to walk-back.
       // (Should never happen post-1.5.8, but keep the old behavior safe.)
-      startWalkBack(() => completeCallAlsDelivery(dispatch, h));
+      startWalkBack(() => completeCallAlsDelivery(dispatch, h), 'als');
       return;
     }
     // CEMS called for ALS — outcome decided immediately (no driving).
@@ -26977,17 +27338,24 @@ function refuseTransport() {
       document.getElementById('dispatch-title').textContent = 'Refusal \u2014 give patient the speech';
       document.getElementById('dispatch-loc').textContent = 'Use the PATIENT tab';
       showBanner('REFUSAL SPEECH \u2014 talk to the patient (PATIENT tab)');
+      // Stage 3: refusal-speech phase entered \u2014 refresh the auto-radio
+      // button so it picks up the "AUTO-FILL REFUSAL SPEECH" mode.
+      try { _refreshAutoRadioButton(); } catch (_eAR) {}
       startPatientRefusalSpeech(dispatch, () => {
         // Speech complete: NOW null destination and proceed to walk-back.
         game.destination = null;
-        startWalkBack(() => resolveRefusal(dispatch));
+        // Stage 3: tag as refusal/treatRelease based on dispatch transport
+        // need so the auto-radio button picks the right script.
+        startWalkBack(() => resolveRefusal(dispatch),
+          (dispatch && dispatch.needsTransport) ? 'refusal' : 'treatRelease');
       });
       return;
     }
     // No dispatch object (defensive — shouldn't normally happen). Skip
     // the speech and proceed straight to walk-back.
     game.destination = null;
-    startWalkBack(() => resolveRefusal(dispatch));
+    startWalkBack(() => resolveRefusal(dispatch),
+      (dispatch && dispatch.needsTransport) ? 'refusal' : 'treatRelease');
     return;
   }
   // No medic-on-foot context (legacy path). Run the speech if dispatch
@@ -44517,6 +44885,28 @@ function _quizRenderPrequiz(m) {
       return;
     }
     q.questions = list;
+    // Stage 3 fix: per-question option shuffle. Until this fix, every
+    // arcade question rendered its options in the order they were
+    // authored \u2014 and a huge majority of questions in the bank were
+    // written with the correct answer in position A, so memorizing
+    // "always pick A" was the winning strategy. Now every question
+    // gets a shallow-cloned wrapper with a freshly-shuffled options
+    // array. `opt.correct` travels with each option object, so the
+    // answer-comparison + reveal styling all continue to work unchanged.
+    // We clone BOTH the question object and its options array so the
+    // canonical question bank (shared by reference from
+    // _quizSelectQuestions) never gets mutated \u2014 the next quiz
+    // attempt starts from the same clean source order and re-shuffles.
+    try {
+      for (let qi = 0; qi < q.questions.length; qi++) {
+        const orig = q.questions[qi];
+        if (!orig || !Array.isArray(orig.options) || orig.options.length < 2) continue;
+        const clone = Object.assign({}, orig);
+        clone.options = orig.options.slice();
+        _quizShuffleInPlace(clone.options);
+        q.questions[qi] = clone;
+      }
+    } catch (_eShuf) {}
     q.current = 0;
     q.answers = {};
     // Ship 5: q.flagged kept as an empty stub so leftover q.flagged[i]
