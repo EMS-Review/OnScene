@@ -4727,28 +4727,44 @@ function ensureChunks() {
       chunksChanged = true;
     }
   }
-  // Visibility radius \u2014 slightly larger than max viewport extent so we never
+  // Visibility radius — slightly larger than max viewport extent so we never
   // pop cars in or out of view. Stage 1.5: measure from camera, not vehicle,
   // so cars don't disappear when the medic walks away from the ambo.
-  // Stage 1.6: dynamic via getVisibleRadius() \u2014 sized from actual viewport.
+  // Stage 1.6: dynamic via getVisibleRadius() — sized from actual viewport.
   const VISIBLE_RADIUS = getVisibleRadius();
   const cam = getCameraPos();
-  for (const key of Array.from(chunks.keys())) {
-    if (!wanted.has(key)) {
-      const chunk = chunks.get(key);
-      // If any car in this chunk is currently visible to the player, defer
-      // unloading. The chunk will retry next frame.
-      let hasVisibleCar = false;
-      for (const c of chunk.traffic) {
-        const pos = getCarPos(c);
-        if (Math.hypot(pos.x - cam.x, pos.y - cam.y) < VISIBLE_RADIUS) {
-          hasVisibleCar = true;
-          break;
+  // Stage 3 perf: skip the eviction sweep when the camera hasn't crossed
+  // a chunk boundary AND no new chunks were just added. The old code
+  // allocated `Array.from(chunks.keys())` every frame (~50-100 keys) and
+  // iterated through them looking for stale entries — but most frames the
+  // chunk set hasn't changed at all. Track the last-seen chunk grid
+  // position on the function itself; if it matches AND nothing was just
+  // added, skip the eviction loop entirely.
+  const camCx = Math.floor(cam.x / CHUNK_SIZE);
+  const camCz = Math.floor(cam.y / CHUNK_SIZE);
+  const lastCx = ensureChunks._lastCamCx;
+  const lastCz = ensureChunks._lastCamCz;
+  const cameraMoved = (camCx !== lastCx) || (camCz !== lastCz);
+  if (cameraMoved || chunksChanged) {
+    ensureChunks._lastCamCx = camCx;
+    ensureChunks._lastCamCz = camCz;
+    for (const key of Array.from(chunks.keys())) {
+      if (!wanted.has(key)) {
+        const chunk = chunks.get(key);
+        // If any car in this chunk is currently visible to the player, defer
+        // unloading. The chunk will retry next frame.
+        let hasVisibleCar = false;
+        for (const c of chunk.traffic) {
+          const pos = getCarPos(c);
+          if (Math.hypot(pos.x - cam.x, pos.y - cam.y) < VISIBLE_RADIUS) {
+            hasVisibleCar = true;
+            break;
+          }
         }
+        if (hasVisibleCar) continue;     // keep chunk + its cars until they're out of view
+        chunks.delete(key);
+        chunksChanged = true;
       }
-      if (hasVisibleCar) continue;     // keep chunk + its cars until they're out of view
-      chunks.delete(key);
-      chunksChanged = true;
     }
   }
   // Stage 2.9.5o: invalidate the active-buildings cache only when the chunk
@@ -11411,15 +11427,27 @@ function setupChat() {
         } catch (_e) {}
         const isCems = (game.role === 'CEMS');
         // Push messages through sendChatMessage so the dispatch parser
-        // sees them exactly as if the player typed them \u2014 that's
+        // sees them exactly as if the player typed them — that's
         // what releases the awaiting-clearance gate.
+        //
+        // Stage 3 fix: the hail must match the parser's CEMS-open-channel
+        // regex at line ~6771, which looks for "<X> from EMS" / "EMS to
+        // <X>" / "Control from EMS" etc. The previous hail
+        // "Dispatch from CEMS." did NOT match (it's "from CEMS", not
+        // "from EMS"), so the channel never opened and dispatch
+        // responded with the "stand by, open your radio call first"
+        // rejection. Use "Control from EMS" verbatim — that's the exact
+        // phrasing the in-game help text recommends.
         let delay = 400;
         if (isCems && !chatState.cemsRadioOpen) {
-          // Hail first to open the channel.
+          // Hail first to open the channel. Use the canonical phrase
+          // the parser accepts.
           setTimeout(() => {
-            sendChatMessage('Dispatch from CEMS.');
+            sendChatMessage('Control from EMS.');
           }, delay);
-          delay += 1400;
+          // Larger gap before the clearance so the channel-open ack lands
+          // first — otherwise the clearance message races the hail.
+          delay += 1800;
         }
         setTimeout(() => {
           sendChatMessage('Show us clear of scene, returning to service.');
@@ -12198,14 +12226,16 @@ function updateDriving(dt) {
     if (player.speed > 0) player.speed = Math.max(0, player.speed - FRICTION * dt);
     else if (player.speed < 0) player.speed = Math.min(0, player.speed + FRICTION * dt);
   }
-  // Stage 2.7: rescue truck is a heavy 4-person unit and gets a hard
-  // 60 mph cap even on lights/sirens (it's not built for highway speed).
-  // Ambulance / squad get the standard +20 mph L/S bonus on top of the
-  // posted speed limit.
+  // Stage 2.7 / Stage 3: rescue truck is a heavy 4-person unit. Its top
+  // speed with lights/sirens is a flat 60 mph regardless of road speed
+  // limit \u2014 previously the cap was Math.min(60, speedLimit + 20),
+  // which only allowed 50 mph on a 30-mph road. Without L/S, it still
+  // obeys the posted limit. Ambulance / squad get the standard +20 mph
+  // L/S bonus on top of the posted speed limit (no hard ceiling).
   let limitMph;
   if (game.vehicle === 'rescue') {
     limitMph = game.lightsSirens
-      ? Math.min(60, game.speedLimit + 20)
+      ? 60
       : game.speedLimit;
   } else {
     limitMph = game.speedLimit + (game.lightsSirens ? 20 : 0);
@@ -27503,11 +27533,24 @@ function completeCallAlsDelivery(dispatch, chosenHospital, alsTag) {
       const h = HOSPITALS.find(x => x.code === c);
       return h ? h.name : c;
     });
-    resultMsg = 'You called ALS, but directed them to <b>' + chosenHospital.name + '</b> \u2014 wrong destination for this patient. The appropriate hospital was <b>' + _wrongRecHospName + '</b>.' +
+    resultMsg = 'You called ALS, but directed them to <b>' + chosenHospital.name + '</b> — wrong destination for this patient. The appropriate hospital was <b>' + _wrongRecHospName + '</b>.' +
       (_acceptableNames.length ? ' (Acceptable: ' + _acceptableNames.join(', ') + ')' : '');
     resultColor = '#ef476f';
     resultText = 'NO PATIENT SAVED';
     titleText = 'WRONG HOSPITAL';
+    // Stage 3: clinical-care consolation bonus. Same rule as the transport
+    // wrong-hospital path — solid clinical work earns +10 even on a wrong
+    // destination call.
+    try {
+      const _cs = (typeof pkmComputeClinicalScore === 'function')
+        ? pkmComputeClinicalScore() : null;
+      if (_cs && _cs.score >= 50) {
+        addScore(10);
+        resultMsg += '<br><br><b style="color:#06d6a0;">+10 points</b> ' +
+          '<i>— your clinical care was solid (' + _cs.score +
+          '/100). Wrong destination, but good prehospital work before the handoff.</i>';
+      }
+    } catch (_eCs) {}
   }
   document.getElementById('hud-saved').textContent = game.patientsSaved;
   // Stage 2.0x: per user request, no longer heal the rig on a save. Vehicle
@@ -27621,9 +27664,24 @@ function completeHospitalDelivery() {
       const h = HOSPITALS.find(x => x.code === c);
       return h ? h.name : c;
     });
-    resultMsg = 'You took the patient to <b>' + chosenHospital.name + '</b>, but the appropriate destination was <b>' + _rtWrongHospName + '</b> \u2014 its specialty matched the patient.' +
+    resultMsg = 'You took the patient to <b>' + chosenHospital.name + '</b>, but the appropriate destination was <b>' + _rtWrongHospName + '</b> — its specialty matched the patient.' +
       (_rtAcceptableNames.length ? ' (Acceptable: ' + _rtAcceptableNames.join(', ') + ')' : '');
     resultColor = '#ef476f';
+    // Stage 3: clinical-care consolation bonus. Wrong hospital still
+    // counts as "no save" for patient count, but if the player's clinical
+    // performance score is at least 50, they get +10 score for delivering
+    // competent prehospital care. Rewards good treatment even when the
+    // destination decision was off.
+    try {
+      const _cs = (typeof pkmComputeClinicalScore === 'function')
+        ? pkmComputeClinicalScore() : null;
+      if (_cs && _cs.score >= 50) {
+        addScore(10);
+        resultMsg += '<br><br><b style="color:#06d6a0;">+10 points</b> ' +
+          '<i>— your clinical care was solid (' + _cs.score +
+          '/100). Wrong destination, but good prehospital work on the ride.</i>';
+      }
+    } catch (_eCs) {}
   }
   document.getElementById('hud-saved').textContent = game.patientsSaved;
   game.hp = game.maxHp;
