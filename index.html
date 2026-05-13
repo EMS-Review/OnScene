@@ -1787,6 +1787,25 @@
     <div id="crew-cards" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; max-width:170px;"></div>
   </div>
   <div id="right-panel" style="display:none;">
+    <!-- Stage 4 QOL: persistent PARTNER pill. Shows the equipped frame
+         border so the cosmetic upgrade reads at-a-glance during play,
+         not only when the partner speech bubble briefly pops up. Hidden
+         until startShift sets game.partner. -->
+    <div id="partner-pill" style="
+      display:none; align-items:center; gap:8px;
+      padding:6px 12px;
+      background:rgba(10,10,20,0.92);
+      border:2px solid #ffd166; border-radius:6px;
+      color:#f4f1de; font-family:'Courier New',monospace; font-size:11px;
+      letter-spacing:1px; margin-bottom:8px;
+      box-shadow:0 0 12px rgba(255,209,102,0.18);
+    ">
+      <span style="font-size:14px;">👤</span>
+      <div style="display:flex; flex-direction:column; gap:1px;">
+        <span style="font-size:9px; color:#a8b0c4; letter-spacing:1.5px;">PARTNER</span>
+        <span id="partner-pill-name" style="color:#ffd166; font-weight:bold;">—</span>
+      </div>
+    </div>
     <div id="clock-panel">
       <div class="head">⏰ SHIFT CLOCK</div>
       <div class="game-time" id="game-time">8:00 AM</div>
@@ -2010,7 +2029,7 @@
           font-weight:bold; letter-spacing:1px; cursor:pointer; border-radius:3px;
           flex-shrink:0; white-space:nowrap;
         ">📻 DISPATCH</button>
-        <button class="chat-tab" data-target="partner" style="
+        <button class="chat-tab" data-target="partner" id="chat-tab-partner" style="
           background:transparent; color:#a0a0b0; border:1px solid #555;
           padding:4px 10px; font-family:inherit; font-size:10px;
           font-weight:bold; letter-spacing:1px; cursor:pointer; border-radius:3px;
@@ -2116,6 +2135,30 @@
         <br>
         <span style="font-size:34px; color:var(--pg-accent); letter-spacing:4px;">PITTSBURGH</span>
       </h1>
+      <!-- Stage 4 QOL: a single compact row that holds the active badge
+           AND the persistent Respect counter. Both are populated by JS
+           at boot; if neither is set, the row stays hidden so a fresh
+           save doesn't show empty pills. Click the respect counter to
+           open the shop. -->
+      <div id="title-cosmetic-row" style="display:none;
+            align-items:center; justify-content:center; gap:12px;
+            margin-top:6px; flex-wrap:wrap;">
+        <div id="title-badge-display" style="display:none;
+              font-family:'Courier New',monospace; font-size:11px;
+              letter-spacing:2.5px; padding:5px 14px;
+              border:1px solid #ffd166; border-radius:3px;
+              background:rgba(255,209,102,0.08); color:#ffd166;
+              text-transform:uppercase;"></div>
+        <div id="title-respect-display" style="display:none;
+              font-family:'Courier New',monospace; font-size:10px;
+              letter-spacing:2px; color:#a8b0c4;
+              padding:5px 12px; border:1px solid #3a3a4e; border-radius:3px;
+              background:rgba(20,22,32,0.55);
+              cursor:pointer; user-select:none; text-transform:uppercase;"
+              title="Open Respect Shop">
+          RESPECT <span id="title-respect-amount" style="color:#ffd166; font-weight:bold;">0</span>
+        </div>
+      </div>
       <div class="sub" style="margin-bottom:6px;">
         A top-down EMS RPG. Run a shift in the Steel City — drive code three,
         work scenes, transport patients, keep your crew alive.
@@ -2126,81 +2169,66 @@
            the snapshot and jumps straight into driving mode. -->
       <button class="primary big-btn" id="title-resume-btn"
               style="margin-top:0; display:none; background:#d97706;">▶ RESUME SHIFT</button>
-      <!-- Stage 1.6 fix: secondary buttons in a row so HOW TO PLAY + CREDITS sit
-           side-by-side. Each is a .secondary so they share the slate/red
-           pre-game palette and don't compete with the green PLAY button. -->
-      <div style="display:flex; gap:10px; margin-top:0; flex-wrap:wrap; justify-content:center;">
+      <!-- Stage 4 QOL: secondary buttons regrouped into two compact rows
+           (primary actions on top, optional/utility on bottom). Each row
+           is centered so the layout breathes without sprawling. -->
+      <div style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap; justify-content:center;">
         <button class="secondary" id="title-howto-btn">HOW TO PLAY</button>
-        <!-- Stage 2.9 QOL: TUTORIAL is a step-by-step illustrated walk-
-             through aimed at brand-new players. HOW TO PLAY is a
-             reference; TUTORIAL is a guided first-experience tour. Sits
-             next to HOW TO PLAY so the relationship is obvious. -->
         <button class="secondary" id="title-tutorial-btn">TUTORIAL</button>
-        <!-- Stage 2.8 QOL: ACHIEVEMENTS opens an overlay listing every
-             achievement with locked ones obscured. Sits between HOW TO
-             PLAY and CREDITS so it's discoverable without crowding. -->
         <button class="secondary" id="title-achievements-btn">ACHIEVEMENTS</button>
-        <!-- Stage 2.9 QOL: Replay the most recent debrief. Hidden until
-             the player has finished at least one call this session or in
-             a previous session (saved to emsq_lastdebrief_v1 — survives
-             reload). The handler injects the saved title/result/msg into
-             a read-only overlay so the coaching block can be re-read
-             without forcing the player to open a fresh shift. -->
-        <button class="secondary" id="title-replay-debrief-btn"
-                style="display:none;">REPLAY DEBRIEF</button>
+        <button class="secondary" id="title-respect-shop-btn">RESPECT SHOP</button>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; justify-content:center;">
+        <button class="secondary" id="title-replay-debrief-btn" style="display:none;">REPLAY DEBRIEF</button>
         <button class="secondary" id="title-credits-btn">CREDITS</button>
       </div>
-      <!-- Stage 3: walkthrough-on-first-call toggle. Checked by default. The
-           value is persisted in localStorage. If unchecked, the first-call
-           walkthrough is suppressed for the upcoming shift. After a shift
-           where the walkthrough actually ran on a call, this toggle auto-
-           unchecks on the next title-screen visit (so it acts as "show it
-           once and then leave me alone" by default). -->
-      <label id="title-walkthrough-toggle" style="
-          display:inline-flex; align-items:center; gap:10px; margin-top:14px;
-          padding:8px 14px; border:1px dashed #3a3a4e; border-radius:4px;
-          background:rgba(20,22,32,0.55); font-family:'Courier New',monospace;
-          color:#f4f1de; font-size:11px; letter-spacing:1.5px;
-          cursor:pointer; user-select:none; text-transform:uppercase;">
-        <input type="checkbox" id="title-walkthrough-cb" checked
-               style="width:14px; height:14px; cursor:pointer; accent-color:#ffd166;">
-        <span>Walkthrough on first call</span>
-      </label>
-      <div style="font-family:'Courier New',monospace; font-size:10px;
-                  color:#a8b0c4; max-width:520px; margin-top:4px;
-                  line-height:1.5; opacity:0.85; padding:0 4px;">
-        Shows a step-by-step bubble teaching the UI flow — dispatch →
-        drive → scene → assess → treat → transport →
-        clear. Helps new players learn the structure of a call.
-      </div>
-      <label id="title-autotreat-toggle" style="
-          display:inline-flex; align-items:center; gap:10px; margin-top:8px;
-          padding:8px 14px; border:1px dashed #3a3a4e; border-radius:4px;
-          background:rgba(20,22,32,0.55); font-family:'Courier New',monospace;
-          color:#f4f1de; font-size:11px; letter-spacing:1.5px;
-          cursor:pointer; user-select:none; text-transform:uppercase;">
-        <input type="checkbox" id="title-autotreat-cb" checked
-               style="width:14px; height:14px; cursor:pointer; accent-color:#06d6a0;">
-        <span>Auto-treatment on all calls</span>
-      </label>
-      <div style="font-family:'Courier New',monospace; font-size:10px;
-                  color:#a8b0c4; max-width:520px; margin-top:4px;
-                  line-height:1.5; opacity:0.85; padding:0 4px;">
-        The game runs the SCENE → ASSESS → TALK → TREAT
-        sequence for you, one action at a time, so you can WATCH how a
-        call should be run per the lab notebook. You still pick the
-        transport disposition and hospital.
-      </div>
-      <!-- Stage 3: shared rationale below both toggles — spells out
-           why these features are here for first-time players. -->
-      <div style="font-family:'Courier New',monospace; font-size:10px;
-                  color:#ffd166; max-width:520px; margin-top:10px;
-                  line-height:1.5; padding:0 4px;
-                  text-transform:uppercase; letter-spacing:1px;
-                  opacity:0.9;">
-        ✨ Both features are designed to help new players learn the
-        flow of a call — turn them off once you’ve got it.
-      </div>
+      <!-- Stage 4 QOL: NEW PLAYER OPTIONS collapsed by default. Native
+           <details>/<summary> so toggling needs no JS. The two checkboxes
+           (walkthrough + auto-treatment) live inside with one-line
+           explanations instead of long paragraphs. -->
+      <details id="title-options-disclosure" style="margin-top:14px;
+          font-family:'Courier New',monospace; font-size:11px;
+          letter-spacing:1.5px; color:#f4f1de; max-width:540px;
+          width:100%; text-align:left;">
+        <summary style="cursor:pointer; user-select:none;
+            padding:6px 12px; border:1px dashed #3a3a4e; border-radius:4px;
+            background:rgba(20,22,32,0.55); color:#ffd166;
+            text-transform:uppercase; text-align:center; outline:none;
+            list-style:none;">
+          ▸ NEW PLAYER OPTIONS
+        </summary>
+        <div style="padding:12px 14px 4px;">
+          <label id="title-walkthrough-toggle" style="
+              display:flex; align-items:center; gap:10px;
+              padding:6px 10px; border-radius:3px;
+              cursor:pointer; user-select:none; text-transform:uppercase;">
+            <input type="checkbox" id="title-walkthrough-cb" checked
+                   style="width:14px; height:14px; cursor:pointer; accent-color:#ffd166;">
+            <span>Walkthrough on first call</span>
+          </label>
+          <div style="color:#a8b0c4; font-size:10px; opacity:0.85;
+                      padding:0 10px 8px 38px; line-height:1.5; letter-spacing:1px;">
+            Step-by-step bubble teaching the call flow.
+          </div>
+          <label id="title-autotreat-toggle" style="
+              display:flex; align-items:center; gap:10px;
+              padding:6px 10px; border-radius:3px;
+              cursor:pointer; user-select:none; text-transform:uppercase;">
+            <input type="checkbox" id="title-autotreat-cb" checked
+                   style="width:14px; height:14px; cursor:pointer; accent-color:#06d6a0;">
+            <span>Auto-treatment on all calls</span>
+          </label>
+          <div style="color:#a8b0c4; font-size:10px; opacity:0.85;
+                      padding:0 10px 6px 38px; line-height:1.5; letter-spacing:1px;">
+            Auto-runs SCENE → ASSESS → TALK → TREAT so you can watch.
+          </div>
+          <div style="color:#ffd166; font-size:9px; opacity:0.85;
+                      padding:6px 10px 0 10px; line-height:1.5; letter-spacing:1.5px;
+                      text-transform:uppercase; text-align:center;">
+            ✨ Turn off once you’ve got the flow.
+          </div>
+        </div>
+      </details>
     </div>
     <!-- Ship 3: small computer-only warning, bottom-center of the title
          screen. The game requires WASD keys for driving and a mouse for
@@ -2401,6 +2429,61 @@
               max-height:62vh; overflow-y:auto; padding-right:6px;"></div>
       <div style="text-align:center; margin-top:18px;">
         <button class="primary" id="achievements-back-btn">BACK</button>
+      </div>
+    </div>
+  </div>
+  <!-- Stage 4 QOL: RESPECT SHOP — persistent currency / cosmetic-unlock shop.
+       Same overlay-modal pattern as ACHIEVEMENTS. Header shows spendable
+       balance + lifetime earned. Body is built dynamically by JS into a
+       tabbed list of categories. Cosmetic-only — no clinical effects. -->
+  <div class="screen" id="respect-shop-screen" style="display:none; background: rgba(10, 10, 20, 0.97); z-index: 50; overflow-y:auto; align-items:flex-start; padding-top:24px; padding-bottom:24px;">
+    <div class="case-card" style="max-width:640px; text-align:left; margin:auto;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; gap:12px; flex-wrap:wrap;">
+        <h2 style="color:#ffd166; letter-spacing:3px; margin:0;">RESPECT SHOP</h2>
+        <div style="font-family:'Courier New',monospace; font-size:10px; letter-spacing:1.5px; color:#a8b0c4; text-transform:uppercase; line-height:1.6;">
+          <span style="color:#06d6a0;">Spendable</span>:&nbsp;<span id="respect-spendable" style="color:#ffd166; font-weight:bold;">0</span>
+          &nbsp;&middot;&nbsp;
+          <span style="color:#a8b0c4;">Lifetime</span>:&nbsp;<span id="respect-lifetime" style="color:#f4f1de;">0</span>
+        </div>
+      </div>
+      <div style="font-family:'Courier New',monospace; font-size:10px; color:#a8b0c4; letter-spacing:1px; line-height:1.5; margin-bottom:12px; opacity:0.9;">
+        Respect is earned by completing shifts. Spend on cosmetics &mdash; paint jobs,
+        unit numbers, badges. <span style="color:#ffd166;">Purely visual.</span> No effect on
+        patient outcomes, scoring, or clinical correctness.
+      </div>
+      <!-- Category tabs -->
+      <div id="respect-shop-tabs" style="display:flex; gap:5px; margin-bottom:12px; flex-wrap:wrap;">
+        <button class="respect-tab" data-rtab="vehicleThemes" style="flex:1; min-width:80px; padding:7px 4px;
+          background:#ffd166; color:#1a1a2e; border:none; border-radius:4px;
+          font-family:inherit; font-size:10px; letter-spacing:1.2px; font-weight:700;
+          cursor:pointer; text-transform:uppercase;">Vehicle</button>
+        <button class="respect-tab" data-rtab="lightbars" style="flex:1; min-width:80px; padding:7px 4px;
+          background:#3d3d5c; color:#ffd166; border:none; border-radius:4px;
+          font-family:inherit; font-size:10px; letter-spacing:1.2px; font-weight:700;
+          cursor:pointer; text-transform:uppercase;">Lightbar</button>
+        <button class="respect-tab" data-rtab="unitNumbers" style="flex:1; min-width:80px; padding:7px 4px;
+          background:#3d3d5c; color:#ffd166; border:none; border-radius:4px;
+          font-family:inherit; font-size:10px; letter-spacing:1.2px; font-weight:700;
+          cursor:pointer; text-transform:uppercase;">Unit #</button>
+        <button class="respect-tab" data-rtab="titleBadges" style="flex:1; min-width:80px; padding:7px 4px;
+          background:#3d3d5c; color:#ffd166; border:none; border-radius:4px;
+          font-family:inherit; font-size:10px; letter-spacing:1.2px; font-weight:700;
+          cursor:pointer; text-transform:uppercase;">Badges</button>
+        <button class="respect-tab" data-rtab="partnerFrames" style="flex:1; min-width:80px; padding:7px 4px;
+          background:#3d3d5c; color:#ffd166; border:none; border-radius:4px;
+          font-family:inherit; font-size:10px; letter-spacing:1.2px; font-weight:700;
+          cursor:pointer; text-transform:uppercase;">Frames</button>
+        <button class="respect-tab" data-rtab="garageDecor" style="flex:1; min-width:80px; padding:7px 4px;
+          background:#3d3d5c; color:#ffd166; border:none; border-radius:4px;
+          font-family:inherit; font-size:10px; letter-spacing:1.2px; font-weight:700;
+          cursor:pointer; text-transform:uppercase;">Garage</button>
+      </div>
+      <div id="respect-shop-list" style="font-size:12px; line-height:1.5; color:#f4f1de;
+              max-height:54vh; overflow-y:auto; padding-right:6px;"></div>
+      <div id="respect-shop-feedback" style="font-family:'Courier New',monospace; font-size:11px;
+              letter-spacing:1px; min-height:14px; margin-top:10px; text-align:center; color:#06d6a0;"></div>
+      <div style="text-align:center; margin-top:10px;">
+        <button class="primary" id="respect-shop-back-btn">BACK</button>
       </div>
     </div>
   </div>
@@ -3116,6 +3199,13 @@
       </div>
       <button class="primary" id="resume-btn">RESUME</button>
       <br>
+      <!-- Stage 4 QOL: open the RESPECT SHOP from the pause menu so the
+           player can browse cosmetics mid-shift without losing position. -->
+      <button class="secondary" id="pause-respect-shop-btn"
+              style="background:#2a3d2e; color:#06d6a0; border-color:#06d6a0;">
+        ★ RESPECT SHOP
+      </button>
+      <br>
       <!-- Stage 2.8 QOL: end shift early — files the partial shift,
            clears the resume-save so the player can't double-cash a
            shift, and routes through the normal endShift screen. -->
@@ -3123,8 +3213,6 @@
               style="background:#7a3030; color:#f4f1de; border-color:#a04040;">
         &#x2691; END SHIFT EARLY
       </button>
-      <br>
-      <button class="secondary" id="quit-btn">BACK TO CHARACTER SELECT</button>
     </div>
   </div>
   <div class="screen" id="shift-end" style="display:none;">
@@ -3156,8 +3244,20 @@
         <span class="stat-label">HP REMAINING</span>
         <span class="stat-value" id="se-hp">5/5</span>
       </div>
+      <!-- Stage 4 QOL: Respect banked this shift + new spendable total.
+           Populated by awardRespectForShift() during endShift(). -->
+      <div class="stat-row" id="se-respect-row" style="display:none;">
+        <span class="stat-label">RESPECT BANKED</span>
+        <span class="stat-value" id="se-respect-banked" style="color:#06d6a0;">+0</span>
+      </div>
     </div>
     <button class="primary" id="se-newshift">NEW SHIFT</button>
+    <!-- Stage 4 QOL: jump directly to the RESPECT SHOP from the shift-end
+         screen so players can spend what they just earned. -->
+    <button class="secondary" id="se-respect-shop-btn"
+            style="background:#2a3d2e; color:#06d6a0; border-color:#06d6a0;">
+      ★ SPEND RESPECT
+    </button>
     <button class="secondary" id="se-back">BACK TO CHARACTER SELECT</button>
     <!-- Stage 1.6 fix: credits button — opens overlay, leaves shift-end intact. -->
     <button class="secondary" id="se-credits-btn">CREDITS</button>
@@ -12461,6 +12561,10 @@ function gameOver() {
     });
   } catch (e) {}
   try { _saveClear(); _stopSaveHeartbeat(); _updateTitleResumeButton(); } catch (e) {}
+  // Stage 4 QOL: still bank Respect for a cut-short shift — the player
+  // earned their score before the rig went down. Same guard as in
+  // endShift() prevents a double award on re-renders.
+  try { awardRespectForShift(); } catch (_eR) {}
   stopSiren();
   document.getElementById('clock-panel').style.display = 'none';
   document.getElementById('hud').style.display = 'none';
@@ -13859,12 +13963,25 @@ function _emsqInferProviderNameGender(name) {
   if (_PROVIDER_NAME_M.has(last)) return 'M';
   return null;
 }
+// Stage 4 QOL: one-shot override for the player's name. Set by codes
+// like PLATON / ANNIKA entered on the title screen. Consumed on the NEXT
+// startShift's initPlayerName call so the rename applies for exactly one
+// shift — subsequent shifts roll a fresh name from PLAYER_NAMES.
+let _oneTimePlayerNameOverride = null;
 // The pool intentionally has no overlap with PARTNER_ARCHETYPES names so
 // the player and their partner can never share a name. Stored on
 // game.playerName; crewNames() reads from it.
 function initPlayerName() {
-  const pool = PLAYER_NAMES || ['Jordan'];
-  game.playerName = pool[Math.floor(Math.random() * pool.length)];
+  // Stage 4 QOL: if a one-shot override is queued (PLATON / ANNIKA cheat
+  // codes), use it and clear it so the NEXT shift re-rolls normally. The
+  // user's stated rule is "don't save if you do multiple shifts in a row".
+  if (typeof _oneTimePlayerNameOverride === 'string' && _oneTimePlayerNameOverride.length > 0) {
+    game.playerName = _oneTimePlayerNameOverride;
+    _oneTimePlayerNameOverride = null;
+  } else {
+    const pool = PLAYER_NAMES || ['Jordan'];
+    game.playerName = pool[Math.floor(Math.random() * pool.length)];
+  }
   // Stage 2.8 QOL: roll a player appearance for the on-foot canvas
   // sprite + the encounter back-view. Random skin tier + 50/50 sex.
   // Persists for the duration of the shift.
@@ -13933,6 +14050,8 @@ function initPartner() {
   } else {
     game.extraCrew = null;
   }
+  // Stage 4 QOL: refresh the persistent partner pill in the right panel.
+  try { _refreshPartnerPill(); } catch (_e) {}
 }
 // Stage 1.5 chatter scheduling state. We track when the next chatter is
 // allowed to fire so it never feels constant.
@@ -29775,7 +29894,7 @@ function worldToScreen(wx, wy) {
     y: (wy - cam.y) * cameraZoom * VIEW_PITCH + viewH / 2,
   };
 }
-function drawVehicle(ctx, vx, vy, heading, type, lightsOn, headlightsOn, t) {
+function drawVehicle(ctx, vx, vy, heading, type, lightsOn, headlightsOn, t, playerTint) {
   ctx.save();
   ctx.translate(vx, vy);
   ctx.rotate(heading);
@@ -29790,7 +29909,18 @@ function drawVehicle(ctx, vx, vy, heading, type, lightsOn, headlightsOn, t) {
   }
   if (lightsOn) {
     const phase = Math.sin(t * 12);
-    ctx.fillStyle = phase > 0 ? 'rgba(239, 71, 111, 0.28)' : 'rgba(17, 138, 178, 0.28)';
+    // Stage 4 QOL: if this is the player's own rig (playerTint truthy),
+    // the lightbar glow phases use the equipped lightbar style. Traffic
+    // and ALS rigs still use the classic red/blue regardless.
+    let aCol = 'rgba(239, 71, 111, 0.28)';
+    let bCol = 'rgba(17, 138, 178, 0.28)';
+    if (playerTint) {
+      try {
+        const lb = getActiveLightbarStyle();
+        if (lb) { aCol = lb.glowA || lb.a; bCol = lb.glowB || lb.b; }
+      } catch (_eLB) {}
+    }
+    ctx.fillStyle = phase > 0 ? aCol : bCol;
     ctx.beginPath();
     ctx.ellipse(0, 0, 38, 26, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -29799,13 +29929,36 @@ function drawVehicle(ctx, vx, vy, heading, type, lightsOn, headlightsOn, t) {
   ctx.beginPath();
   ctx.ellipse(2, 2, 14, 8, 0, 0, Math.PI * 2);
   ctx.fill();
-  if (type === 'ambo') drawAmbo(ctx, lightsOn, t);
-  else if (type === 'squad') drawSquad(ctx, lightsOn, t);
-  else if (type === 'rescue') drawRescue(ctx, lightsOn, t);
+  // Stage 4 QOL: real color theming — when this is the player's rig we
+  // forward the active theme's body/bodyShade AND lightbar style so
+  // both paint job and roof-bar pixels redraw themselves in the new
+  // colors. Traffic and ALS rigs pass undefined → existing hardcoded
+  // colors stay put.
+  let themeColors = null;
+  if (playerTint) {
+    try {
+      const td = getActiveTopDownColors();
+      const lb = getActiveLightbarStyle();
+      if (td || lb) {
+        themeColors = {
+          body:      td ? td.body : null,
+          bodyShade: td ? td.bodyShade : null,
+          lightbar:  lb || null
+        };
+      }
+    } catch (_eTC) {}
+  }
+  if (type === 'ambo') drawAmbo(ctx, lightsOn, t, themeColors);
+  else if (type === 'squad') drawSquad(ctx, lightsOn, t, themeColors);
+  else if (type === 'rescue') drawRescue(ctx, lightsOn, t, themeColors);
   ctx.restore();
 }
-function drawAmbo(ctx, lightsOn, t) {
-  ctx.fillStyle = '#f4f4ee';
+function drawAmbo(ctx, lightsOn, t, themeColors) {
+  // Stage 4 QOL: body color comes from the active theme when provided
+  // (player rig only). Stripes, decals, glass, trim are kept as-is so
+  // the rig still reads as an ambulance regardless of paint job.
+  const body = (themeColors && themeColors.body) || '#f4f4ee';
+  ctx.fillStyle = body;
   ctx.fillRect(-14, -7, 16, 14);
   ctx.fillRect(2, -6.5, 12, 13);
   ctx.fillRect(13, -6, 3, 12);
@@ -29833,7 +29986,7 @@ function drawAmbo(ctx, lightsOn, t) {
   ctx.restore();
   ctx.fillStyle = '#06d6a0';
   ctx.fillRect(-14, -1.2, 18, 1);
-  drawRoofLightbarWide(ctx, 6, 0, 12, lightsOn, t);
+  drawRoofLightbarWide(ctx, 6, 0, 12, lightsOn, t, themeColors && themeColors.lightbar);
   ctx.fillStyle = '#1a1a14';
   [[-11, -7], [-11, 6], [12, -6], [12, 5]].forEach(p => ctx.fillRect(p[0], p[1], 3, 1.5));
   ctx.fillStyle = '#fff5cc';
@@ -29843,7 +29996,7 @@ function drawAmbo(ctx, lightsOn, t) {
   ctx.fillRect(-14.4, -6, 0.6, 1.5);
   ctx.fillRect(-14.4, 4.5, 0.6, 1.5);
 }
-function drawSquad(ctx, lightsOn, t) {
+function drawSquad(ctx, lightsOn, t, themeColors) {
   // CMU EMS squad — clean, minimal Ford Explorer SUV. Top-down.
   // Design priorities (per request):
   //   - white body, visible side windows
@@ -29851,6 +30004,9 @@ function drawSquad(ctx, lightsOn, t) {
   //   - no busy side text, no rear chevrons, no Star of Life clutter
   //
   // Coordinate convention (matches drawAmbo): +X = front of vehicle.
+  // Stage 4 QOL: body + window pillars take the active theme color when
+  // provided; everything else (stripe, glass, label, wheels) stays put.
+  const body = (themeColors && themeColors.body) || '#f4f4ee';
   const L = 13;     // half-length
   const W = 6;      // half-width
   // Drop shadow for grounding
@@ -29859,7 +30015,7 @@ function drawSquad(ctx, lightsOn, t) {
   ctx.ellipse(1.5, 1.5, L + 0.5, W + 0.5, 0, 0, Math.PI * 2);
   ctx.fill();
   // White SUV body — slightly tapered front corners for an Explorer profile.
-  ctx.fillStyle = '#f4f4ee';
+  ctx.fillStyle = body;
   ctx.beginPath();
   ctx.moveTo(L, -W + 1);
   ctx.lineTo(L - 1, -W);
@@ -29885,7 +30041,7 @@ function drawSquad(ctx, lightsOn, t) {
   ctx.fillRect(-L + 3, -W + 1.6, (L * 2) - 6, 1.4);          // top side window
   ctx.fillRect(-L + 3,  W - 3.0, (L * 2) - 6, 1.4);          // bottom side window
   // Window divider posts (B-pillars) so it reads as separate windows, not a tube.
-  ctx.fillStyle = '#f4f4ee';
+  ctx.fillStyle = body;
   for (const px of [-L + 6.5, 0, L - 6]) {
     ctx.fillRect(px - 0.3, -W + 1.5, 0.6, 1.6);
     ctx.fillRect(px - 0.3,  W - 3.1, 0.6, 1.6);
@@ -29897,7 +30053,7 @@ function drawSquad(ctx, lightsOn, t) {
   ctx.fillRect(-L + 1.5, -W + 3.2, 2.0, (W - 3.2) * 2);
   // Roof lightbar — full-width across the top, drawn BEFORE the label so the
   // label can sit in the clear roof space in front of (or behind) the bar.
-  drawRoofLightbarWide(ctx, 1.5, 0, 9, lightsOn, t);
+  drawRoofLightbarWide(ctx, 1.5, 0, 9, lightsOn, t, themeColors && themeColors.lightbar);
   // "CMU EMS" label. The lightbar covers x ≈ -3 to x ≈ +6, so the only roof
   // space wide enough for two-line text is between the rear hatch glass
   // (x ≈ -9.5) and the lightbar's left edge (x ≈ -3). Center the label
@@ -29922,10 +30078,16 @@ function drawSquad(ctx, lightsOn, t) {
   ctx.fillRect(-L - 0.3, -3.5, 0.5, 1.2);
   ctx.fillRect(-L - 0.3,  2.3, 0.5, 1.2);
 }
-function drawRescue(ctx, lightsOn, t) {
-  ctx.fillStyle = '#c1121f';
+function drawRescue(ctx, lightsOn, t, themeColors) {
+  // Stage 4 QOL: rescue's default body is red and its cab is darker red.
+  // When a theme is active, both pick up the theme's body + bodyShade.
+  // Chevron stripes, windows, lightbar, wheels are intentionally NOT
+  // recolored — they're high-vis pattern, not paint.
+  const body  = (themeColors && themeColors.body)      || '#c1121f';
+  const shade = (themeColors && themeColors.bodyShade) || '#a01018';
+  ctx.fillStyle = body;
   ctx.fillRect(-19, -8, 35, 16);
-  ctx.fillStyle = '#a01018';
+  ctx.fillStyle = shade;
   ctx.fillRect(8, -7.5, 11, 15);
   for (let i = 0; i < 9; i++) {
     ctx.fillStyle = i % 2 === 0 ? '#ffd166' : '#fff';
@@ -29944,35 +30106,44 @@ function drawRescue(ctx, lightsOn, t) {
   ctx.strokeRect(-19, -8, 35, 16);
   ctx.fillStyle = '#3a5a8a';
   ctx.fillRect(13, -6.5, 5, 13);
-  drawRoofLightbarWide(ctx, 0, 0, 14, lightsOn, t);
+  drawRoofLightbarWide(ctx, 0, 0, 14, lightsOn, t, themeColors && themeColors.lightbar);
   ctx.fillStyle = '#1a1a14';
   [[-15, -8], [-15, 7], [-9, -8], [-9, 7], [-3, -8], [-3, 7], [12, -7.5], [12, 6.5]].forEach(p => ctx.fillRect(p[0], p[1], 3, 1.5));
   ctx.fillStyle = '#fff5cc';
   ctx.fillRect(18.5, -5, 0.7, 1.8);
   ctx.fillRect(18.5, 2.5, 0.7, 1.8);
 }
-function drawRoofLightbarWide(ctx, cx, cy, w, lightsOn, t) {
+function drawRoofLightbarWide(ctx, cx, cy, w, lightsOn, t, lightbarStyle) {
   const halfW = w / 2;
   const thick = 2.2;
   ctx.fillStyle = '#1a1a14';
   ctx.fillRect(cx - thick/2, cy - halfW, thick, w);
   if (lightsOn) {
-    // Stage 2.0n: back to red/blue (user reverted from 2.0m's red/white).
+    // Stage 4 QOL: themed pixel + halo colors. Without a lightbarStyle
+    // we fall back to the classic red/blue values. The player's rig
+    // passes its equipped style; traffic/ALS pass undefined.
+    const lb = lightbarStyle || null;
+    const pxA    = (lb && lb.pixA)    || '#ff4d6d';
+    const pxAoff = (lb && lb.pixAoff) || '#5a1018';
+    const pxB    = (lb && lb.pixB)    || '#3aaaee';
+    const pxBoff = (lb && lb.pixBoff) || '#0a3a5a';
+    const haloA  = (lb && lb.haloA)   || 'rgba(255, 50, 80, 0.55)';
+    const haloB  = (lb && lb.haloB)   || 'rgba(60, 170, 240, 0.55)';
     const phase = Math.sin(t * 12);
     const redOn = phase > 0;
     const blueOn = phase < 0;
-    ctx.fillStyle = redOn ? '#ff4d6d' : '#5a1018';
+    ctx.fillStyle = redOn ? pxA : pxAoff;
     ctx.fillRect(cx - thick/2 - 0.3, cy - halfW, thick + 0.6, halfW);
-    ctx.fillStyle = blueOn ? '#3aaaee' : '#0a3a5a';
+    ctx.fillStyle = blueOn ? pxB : pxBoff;
     ctx.fillRect(cx - thick/2 - 0.3, cy, thick + 0.6, halfW);
     if (redOn) {
-      ctx.fillStyle = 'rgba(255, 50, 80, 0.55)';
+      ctx.fillStyle = haloA;
       ctx.beginPath();
       ctx.ellipse(cx, cy - halfW/2, thick + 1, halfW * 0.7, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     if (blueOn) {
-      ctx.fillStyle = 'rgba(60, 170, 240, 0.55)';
+      ctx.fillStyle = haloB;
       ctx.beginPath();
       ctx.ellipse(cx, cy + halfW/2, thick + 1, halfW * 0.7, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -30553,14 +30724,19 @@ function render(t) {
     // looked weird coming off a stationary unit (and the user
     // explicitly asked for parked-car headlights off). Keep the
     // lightsSirens (lightbar) honest \u2014 only headlights are forced.
-    drawVehicle(ctx, 0, 0, pv.heading, pv.type, pv.lightsSirens, false, t);
+    // Stage 4 QOL: pass playerTint=true so the equipped paint job
+    // applies to the player's parked rig (matches the moving one).
+    drawVehicle(ctx, 0, 0, pv.heading, pv.type, pv.lightsSirens, false, t, true);
     ctx.restore();
   }
   // Stage 2.8 QOL: spawn-chunk sidewalk arcade. Drawn whenever the
   // player is in driving or onScene mode so it's visible during patrol.
   // Stage 2.9.5: hide the sidewalk arcade for CEMS + squad combo \u2014
   // they have a station-interior arcade in the CMU EMS main hall.
-  const _hideSidewalkArcade = (game.role === 'CEMS' && game.vehicle === 'squad');
+  // Stage 2.9.5 / Stage 4 QOL: sidewalk arcade is no longer rendered
+  // for anyone — every role/vehicle combo now has an in-building arcade
+  // (CMU EMS station for CEMS+squad, station garage for everyone else).
+  const _hideSidewalkArcade = true;
   if (!_hideSidewalkArcade && (game.mode === 'driving' || game.mode === 'onScene')) {
     drawSidewalkArcade(ctx, t);
   }
@@ -30658,7 +30834,9 @@ function render(t) {
       ctx.save();
       ctx.translate(sp.x, sp.y);
       ctx.scale(cameraZoom, cameraZoom);
-      drawVehicle(ctx, 0, 0, player.heading, player.type, game.lightsSirens, game.headlights, t);
+      // Stage 4 QOL: playerTint=true so paint job + lightbar style
+      // are applied to the live player rig.
+      drawVehicle(ctx, 0, 0, player.heading, player.type, game.lightsSirens, game.headlights, t, true);
       ctx.restore();
     }
   }
@@ -31414,10 +31592,14 @@ const SIDEWALK_ARCADE = {
 };
 const SIDEWALK_ARCADE_RADIUS = 26;
 function nearbySidewalkArcade(x, y) {
-  // Stage 2.9.5: CEMS + squad has its arcade INSIDE the CMU EMS station,
-  // so the sidewalk arcade is hidden for that combo. Otherwise the player
-  // would be confused by two arcades that do the same thing.
-  if (game && game.role === 'CEMS' && game.vehicle === 'squad') return null;
+  // Stage 2.9.5: CEMS + squad has its arcade INSIDE the CMU EMS station.
+  // Stage 4 QOL: every other combo now spawns into a station GARAGE with
+  // its own arcade. So the sidewalk arcade is redundant — suppressed
+  // for every role/vehicle combo. Kept in code in case a future build
+  // wants to revive it as an "extra" location.
+  return null;
+}
+function _legacy_nearbySidewalkArcade(x, y) {
   if (distXY(x, y, SIDEWALK_ARCADE.x, SIDEWALK_ARCADE.y) <= SIDEWALK_ARCADE_RADIUS) {
     return SIDEWALK_ARCADE;
   }
@@ -31759,6 +31941,11 @@ function updateInBuilding(dt) {
     cmuemsUpdate(dt);
     return;
   }
+  // Stage 4 QOL: garage interior (pre-shift lobby) has its own update.
+  if (interior.kind === 'garage' && typeof updateInBuildingGarage === 'function') {
+    updateInBuildingGarage(dt);
+    return;
+  }
   // Suppress the door E-prompt for half a second after entering so the
   // very-same E press that opened the door can't immediately exit.
   if (interior.doorJustEntered &&
@@ -31849,6 +32036,11 @@ function tryDoEActionInBuilding() {
   // Stage 2.9.5: CMU EMS multi-room E-key dispatch.
   if (interior.kind === 'cmuems' && typeof cmuemsTryDoE === 'function') {
     cmuemsTryDoE();
+    return;
+  }
+  // Stage 4 QOL: garage interior E-dispatch.
+  if (interior.kind === 'garage' && typeof tryDoEActionInGarage === 'function') {
+    tryDoEActionInGarage();
     return;
   }
   if (interior.promptKey === 'desk')        openInteriorDeskModal();
@@ -46302,6 +46494,11 @@ function renderInBuilding() {
     cmuemsRender();
     return;
   }
+  // Stage 4 QOL: garage renderer (pre-shift lobby).
+  if (interior.kind === 'garage' && typeof renderInBuildingGarage === 'function') {
+    renderInBuildingGarage();
+    return;
+  }
   // Center the interior on the canvas.
   const offX = (viewW - INTERIOR_W) / 2;
   const offY = (viewH - INTERIOR_H) / 2;
@@ -47375,9 +47572,26 @@ function drawVehiclePreview(t) {
   // at its lower-front-center, so we translate to roughly center-bottom.
   ctx.save();
   ctx.translate(W * 0.55, H * 0.78);
-  if (rig === 'ambo')   drawAmbulanceFront3Q(ctx, strobe, t);
-  if (rig === 'squad')  drawSquadFront3Q(ctx, strobe, t);
-  if (rig === 'rescue') drawRescueFront3Q(ctx, strobe, t);
+  // Stage 4 QOL: pass the active theme colors down into the front-3Q
+  // draw functions so they paint themselves correctly. No overlay; the
+  // sprites pick up the new body + lightbar colors in their internal
+  // locals. So the character-select preview always reflects whatever is
+  // equipped in the Respect Shop, including the lightbar style.
+  let _previewThemeColors = null;
+  try {
+    const _f3 = getActiveFront3QColors();
+    const _lb = getActiveLightbarStyle();
+    if (_f3 || _lb) {
+      _previewThemeColors = {
+        body:      _f3 ? _f3.body : null,
+        bodyShade: _f3 ? _f3.bodyShade : null,
+        lightbar:  _lb || null
+      };
+    }
+  } catch (_ePT) {}
+  if (rig === 'ambo')   drawAmbulanceFront3Q(ctx, strobe, t, _previewThemeColors);
+  if (rig === 'squad')  drawSquadFront3Q(ctx, strobe, t, _previewThemeColors);
+  if (rig === 'rescue') drawRescueFront3Q(ctx, strobe, t, _previewThemeColors);
   ctx.restore();
   // Character stands in front-left of the rig.
   ctx.save();
@@ -47390,13 +47604,16 @@ function drawVehiclePreview(t) {
 // the front-bottom-center of the rig (between the front wheels). All
 // dimensions scale off this origin so the rig sits naturally on the
 // "ground" implied by the canvas frame.
-function drawAmbulanceFront3Q(ctx, strobe, t) {
+function drawAmbulanceFront3Q(ctx, strobe, t, themeColors) {
   // Stage 1.6: redrawn for cleaner proportions. The previous version used
   // a slanted parallelogram for the box that read awkwardly. This version
   // uses a near-side-view profile with a tall box, short cab, clear
   // window placement, and visible Battenburg striping.
   // Color palette.
-  const bodyWhite = '#f7f7f8';
+  // Stage 4 QOL: when a player theme is active, its body color replaces
+  // the default white. Stripes/glass/trim stay constant so the rig is
+  // always recognizable as an ambulance.
+  const bodyWhite = (themeColors && themeColors.body) || '#f7f7f8';
   const stripeRed = '#dc2626';
   const stripeBlu = '#1d4ed8';
   const glassDark = '#1a2537';
@@ -47521,7 +47738,7 @@ function drawAmbulanceFront3Q(ctx, strobe, t) {
   ctx.fillText('AMBULANCE', 30, -22);
   ctx.restore();
   // ===== light bar on roof (above the box) =====
-  drawLightBar(ctx, -55, -125, 80, strobe);
+  drawLightBar(ctx, -55, -125, 80, strobe, false, themeColors && themeColors.lightbar);
   // ===== wheels =====
   drawWheel(ctx, -90, 0, 14);    // rear
   drawWheel(ctx, 95,  0, 14);    // front
@@ -47535,9 +47752,11 @@ function drawAmbulanceFront3Q(ctx, strobe, t) {
 // lower body, red wordmark, blue Star of Life. Reference image had a
 // chevron pattern on the rear; we omit detail-heavy text and just suggest
 // the layout with stripes + star.
-function drawSquadFront3Q(ctx, strobe, t) {
-  const bodyWhite = '#f7f7f8';
-  const bodyShade = '#cbd0db';
+function drawSquadFront3Q(ctx, strobe, t, themeColors) {
+  // Stage 4 QOL: body + shade picked up from active theme when set.
+  // CMU red accent stripe + glass + sign stay constant.
+  const bodyWhite = (themeColors && themeColors.body)      || '#f7f7f8';
+  const bodyShade = (themeColors && themeColors.bodyShade) || '#cbd0db';
   const cmuRed    = '#a30c1f';
   const stripeBlu = '#1d4ed8';
   const glassDark = '#1a2537';
@@ -47627,7 +47846,7 @@ function drawSquadFront3Q(ctx, strobe, t) {
   ctx.fillStyle = '#1a1a1f';
   ctx.fillRect(108, -22, 16, 12);
   // ===== light bar on roof (slightly lower-profile than ambo) =====
-  drawLightBar(ctx, -10, -78, 60, strobe);
+  drawLightBar(ctx, -10, -78, 60, strobe, false, themeColors && themeColors.lightbar);
   // ===== wheels =====
   drawWheel(ctx, -100, 0, 13);
   drawWheel(ctx, 80,   0, 13);
@@ -47636,9 +47855,12 @@ function drawSquadFront3Q(ctx, strobe, t) {
 // ----- VEHICLE: RESCUE TRUCK (heavy fire-rescue) -----
 // Big square cab + heavy compartment box behind. Red body, white striping,
 // chrome bumper. More angular and tall than the ambulance.
-function drawRescueFront3Q(ctx, strobe, t) {
-  const bodyRed   = '#b91c1c';
-  const bodyShade = '#7f1d1d';
+function drawRescueFront3Q(ctx, strobe, t, themeColors) {
+  // Stage 4 QOL: rescue front-3Q. Default body is red and cab shade is
+  // darker red; theming swaps both while keeping the white stripe,
+  // chrome bumper, glass and lightbar intact.
+  const bodyRed   = (themeColors && themeColors.body)      || '#b91c1c';
+  const bodyShade = (themeColors && themeColors.bodyShade) || '#7f1d1d';
   const stripeWht = '#f5f5f5';
   const glassDark = '#1a2537';
   const glassRefl = '#5a6f8c';
@@ -47735,7 +47957,7 @@ function drawRescueFront3Q(ctx, strobe, t) {
   ctx.fillStyle = '#1a1a1f';
   ctx.fillRect(106, -36, 18, 18);
   // ===== light bar (broader, with red+blue+amber rescue mix) =====
-  drawLightBar(ctx, -8, -135, 90, strobe, /* rescueMix */ true);
+  drawLightBar(ctx, -8, -135, 90, strobe, /* rescueMix */ true, themeColors && themeColors.lightbar);
   // ===== wheels =====
   drawWheel(ctx, -135, 2, 16);
   drawWheel(ctx, 100,  2, 16);
@@ -47745,7 +47967,7 @@ function drawRescueFront3Q(ctx, strobe, t) {
 // Draws a lit-up roof light bar. cx,cy = top-center of the bar; width =
 // total bar width along the rig. strobe alternates which side flashes
 // red/blue. rescueMix=true adds amber heads at the ends for fire-rescue.
-function drawLightBar(ctx, cx, cy, width, strobe, rescueMix) {
+function drawLightBar(ctx, cx, cy, width, strobe, rescueMix, lightbarStyle) {
   const h = 6;
   const x0 = cx - width / 2;
   // Bar housing.
@@ -47753,6 +47975,12 @@ function drawLightBar(ctx, cx, cy, width, strobe, rescueMix) {
   ctx.fillRect(x0, cy, width, h);
   ctx.fillStyle = '#2a2f3a';
   ctx.fillRect(x0, cy - 2, width, 2);
+  // Stage 4 QOL: themed lit colors. The "A side" uses pixA (red default),
+  // the "B side" uses pixB (blue default). Amber rescue outer heads stay
+  // amber regardless of theme — they're not red/blue lightbar cells.
+  const lb = lightbarStyle || null;
+  const pixA = (lb && lb.pixA) || '#dc2626';
+  const pixB = (lb && lb.pixB) || '#1d4ed8';
   // Strobing heads. The bar is divided into 4 cells (or 6 for rescue).
   const cells = rescueMix ? 6 : 4;
   const cellW = width / cells;
@@ -47762,9 +47990,9 @@ function drawLightBar(ctx, cx, cy, width, strobe, rescueMix) {
       // Outer cells = amber rescue heads (always lit dim, brighten on strobe).
       color = strobe ? '#fbbf24' : '#5e4717';
     } else if (i % 2 === (strobe ? 0 : 1)) {
-      color = '#dc2626';   // red side
+      color = pixA;   // red side (themed)
     } else {
-      color = '#1d4ed8';   // blue side
+      color = pixB;   // blue side (themed)
     }
     ctx.fillStyle = color;
     ctx.fillRect(x0 + i * cellW + 1, cy + 1, cellW - 2, h - 2);
@@ -48461,15 +48689,16 @@ function setupSelect() {
     closeMenu();
     if (typeof endShift === 'function') endShift();
   });
-  document.getElementById('quit-btn').addEventListener('click', () => {
-    // Stage 2.8 QOL: try to commit one last snapshot before bouncing back
-    // to the title — gives the player a clean resume point even if the
-    // last heartbeat was up to 15s ago. Only fires if state is committable
-    // (between calls); otherwise the existing save from the last clean
-    // tick remains.
-    try { _saveSnapshot(); _stopSaveHeartbeat(); _updateTitleResumeButton(); } catch (e) {}
-    returnToSelect();
-  });
+  // Stage 4 QOL: pause-menu "BACK TO CHARACTER SELECT" was removed —
+  // END SHIFT EARLY supersedes it. We still guard the listener bind so
+  // a stale build doesn't NPE if the element is absent.
+  const _quitBtn = document.getElementById('quit-btn');
+  if (_quitBtn) {
+    _quitBtn.addEventListener('click', () => {
+      try { _saveSnapshot(); _stopSaveHeartbeat(); _updateTitleResumeButton(); } catch (e) {}
+      returnToSelect();
+    });
+  }
   // Shift-end screen buttons
   document.getElementById('se-newshift').addEventListener('click', () => {
     document.getElementById('shift-end').style.display = 'none';
@@ -48610,6 +48839,49 @@ function setupSelect() {
           try { sessionStorage.setItem('emsq_unlock_rescue', '1'); } catch (e) {}
           applyCodeUnlocks();
           codesFeedback.textContent = '\u2713 RESCUE TRUCK unlocked (this session)';
+          codesFeedback.style.color = '#06d6a0';
+          break;
+        }
+        // Stage 4 QOL: RESPECT cheat — grants 10,000 spendable Respect so
+        // testers (and curious players) can browse every cosmetic in the
+        // Respect Shop without grinding shifts. ONE-TIME USE per browser:
+        // a localStorage flag (emsq_respect_code_used_v1) blocks re-entry
+        // so the code can't be re-spammed to refill. Bumps lifetime too.
+        // Cosmetic-only — no clinical effect.
+        case 'RESPECT': {
+          let alreadyUsed = false;
+          try { alreadyUsed = (localStorage.getItem('emsq_respect_code_used_v1') === '1'); } catch (_eRC) {}
+          if (alreadyUsed) {
+            codesFeedback.textContent = '\u2717 RESPECT code already redeemed';
+            codesFeedback.style.color = '#ef4444';
+            break;
+          }
+          try {
+            respectState.totalRespect          += 10000;
+            respectState.lifetimeRespectEarned += 10000;
+            saveRespectState();
+            localStorage.setItem('emsq_respect_code_used_v1', '1');
+            _renderTitleRespectDisplay();
+          } catch (_eR) {}
+          codesFeedback.textContent = '\u2713 +10,000 RESPECT banked (one-time)';
+          codesFeedback.style.color = '#ffd166';
+          break;
+        }
+        // Stage 4 QOL: PLATON / ANNIKA — one-shot player-name overrides.
+        // Must be entered BEFORE starting a shift. The override is
+        // consumed on the next initPlayerName call so it applies for
+        // exactly ONE shift — subsequent shifts re-roll a random name
+        // from PLAYER_NAMES per spec ("they don't save if you do
+        // multiple shifts in a row").
+        case 'PLATON': {
+          _oneTimePlayerNameOverride = 'Platon';
+          codesFeedback.textContent = '\u2713 Next shift\u2019s name: Platon';
+          codesFeedback.style.color = '#06d6a0';
+          break;
+        }
+        case 'ANNIKA': {
+          _oneTimePlayerNameOverride = 'Annika';
+          codesFeedback.textContent = '\u2713 Next shift\u2019s name: Annika';
           codesFeedback.style.color = '#06d6a0';
           break;
         }
@@ -48806,6 +49078,28 @@ function startShift() {
   // satisfying browser autoplay policy). Ambient + music start as soon as
   // the game loop sees mode === 'driving'.
   ensureAudio();
+  // Stage 4 QOL: defensive resets so a SECOND shift after a completed
+  // (or crashed) one always loads cleanly. The garage flow sets
+  // game._interior, which used to persist into the next shift in some
+  // edge cases and made the new shift render the prior garage with no
+  // medic. Same for stuck iris overlays and lingering modals.
+  game._interior = null;
+  try {
+    const _iris = document.getElementById('iris-overlay');
+    if (_iris) _iris.style.background = 'transparent';
+  } catch (_eIR) {}
+  try {
+    const _modal = document.getElementById('interior-modal');
+    if (_modal && _modal.parentNode) _modal.parentNode.removeChild(_modal);
+  } catch (_eMR) {}
+  // Stage 4 QOL: clear the per-shift Respect-award guard so the new
+  // shift can cash out its own score. Without this reset, a player who
+  // ended one shift and started another would never bank again.
+  game.respectAwardedThisShift = false;
+  // Stage 4 QOL: refresh HUD unit-number row now that we know we're
+  // entering active play with a (possibly customized) callsign.
+  try { _renderHudUnitNumber(); } catch (_eRU) {}
+  try { _applyPartnerFrameStyle(); } catch (_eRP) {}
   // Stage 2.9.5j: roll CMU EMS station inclusion per-role. CEMS always
   // sees their home base; EMT/AEMT see it 1/1000 shifts as a rare easter
   // egg. Must run BEFORE chunks are first built this shift.
@@ -49029,6 +49323,19 @@ function startShift() {
         }
       }
     } catch (e) {}
+  } else {
+    // Stage 4 QOL: every non-CEMS-squad combo spawns into a small
+    // station garage instead. The rig is rendered inside the bay
+    // (using the active vehicle theme), an arcade cabinet lets the
+    // player jump into the review quiz, and a trophy shelf displays
+    // any equipped garage decor. Walk to the rig and press E to drive
+    // out and begin patrol — the rig appears at the standard spawn
+    // coords on exit so the rest of the world geometry is unchanged.
+    try {
+      if (typeof enterGarageAtShiftStart === 'function') {
+        enterGarageAtShiftStart();
+      }
+    } catch (_eGS) {}
   }
 }
 // Update clock panel DOM. Called once per frame from the main loop while driving.
@@ -49180,6 +49487,9 @@ function _saveSnapshot() {
       px: player.x, py: player.y, ph: player.heading,
       // Shift call log
       shiftCalls: (game.shiftCalls || []).slice(),
+      // Stage 4 QOL: persist the per-shift Respect-award guard so a
+      // resumed shift that was already paid out cannot cash again.
+      respectAwardedThisShift: !!game.respectAwardedThisShift,
     };
     localStorage.setItem(_SAVE_KEY, JSON.stringify(snap));
     _saveLastWriteAt = Date.now();
@@ -49269,6 +49579,9 @@ function resumeSavedShift() {
   game.extraCrew = Array.isArray(snap.extraCrew) ? snap.extraCrew.slice() : null;
   // Shift call log
   game.shiftCalls = Array.isArray(snap.shiftCalls) ? snap.shiftCalls.slice() : [];
+  // Stage 4 QOL: restore the Respect-award guard. If the previous
+  // session already cashed this shift's score, we honor that on resume.
+  game.respectAwardedThisShift = !!snap.respectAwardedThisShift;
   // Misc transient resets
   game.destination       = null;
   game.pendingHospitalChoice = null;
@@ -49294,6 +49607,9 @@ function resumeSavedShift() {
   if (scoreEl) scoreEl.textContent = game.score;
   renderHP();
   renderCrewIndicator();
+  // Stage 4 QOL: refresh persistent cosmetics on resume too.
+  try { _renderHudUnitNumber(); } catch (_eRU) {}
+  try { _applyPartnerFrameStyle(); } catch (_eRP) {}
   setDispatchBadge('PATROL', 'patrol');
   document.getElementById('dispatch-title').textContent = 'Patrolling \u2014 explore the city';
   document.getElementById('dispatch-loc').textContent = 'Next call in ' + Math.round(game.cooldown) + 's';
@@ -49320,6 +49636,7 @@ function resumeSavedShift() {
   scheduleNextCasualChatter();
   showBanner('SHIFT RESUMED \u2014 ' + (game.patientsSaved || 0) +
              ' save' + ((game.patientsSaved === 1) ? '' : 's') + ' so far');
+  try { _refreshPartnerPill(); } catch (_eRP) {}
   try { _startSaveHeartbeat(); } catch (e) {}
   return true;
 }
@@ -49394,6 +49711,10 @@ function endShift() {
   // Stage 2.8 QOL: shift completed naturally — clear the resume save so
   // the title screen no longer offers a stale resume option.
   try { _saveClear(); _stopSaveHeartbeat(); _updateTitleResumeButton(); } catch (e) {}
+  // Stage 4 QOL: bank shift score as persistent Respect. Internally
+  // guarded against double-counting via game.respectAwardedThisShift,
+  // so re-entry into this screen (or a re-fire of endShift) is safe.
+  try { awardRespectForShift(); } catch (_eR) {}
   // Stage 3 polish: fire the SHIFT COMPLETE banner first, then reveal the
   // stats screen after the banner's hold beat. Same overlay infra as the
   // call-outcome stamps, but green palette and a 2.4s duration so the
@@ -49640,6 +49961,7 @@ function returnToSelect() {
   // Stage 1.5 / 2.0j: clear partner + playerName state so next shift rerolls fresh.
   game.partner = null;
   game.playerName = null;
+  try { _refreshPartnerPill(); } catch (_eRP) {}
   // Stage 1.5.2: also clear encounter / quiz state to be safe.
   game._lastEncounterDispatch = null;
   game._assessmentDone = false;
@@ -49876,12 +50198,1899 @@ function runBootAnimation(onComplete) {
   }
   raf = requestAnimationFrame(frame);
 }
+// ============================================================
+// STAGE 4 QOL — RESPECT SHOP
+// ============================================================
+// Persistent currency + cosmetic-unlock shop. Earned at shift end from
+// the shift score; spent on vehicle paint themes, lightbar styles, unit
+// numbers, title badges, partner-frame styles, and garage decorations.
+//
+// Storage keys (all under emsq_*_v1 naming):
+//   - emsq_total_respect_v1           : spendable balance
+//   - emsq_lifetime_respect_earned_v1 : all-time earned, never decreases
+//   - emsq_respect_shop_owned_v1      : owned item IDs by category
+//   - emsq_respect_shop_active_v1     : currently equipped item per slot
+//
+// Clinical-safety contract: nothing in this module may improve patient
+// outcomes, change medication effectiveness, alter scoring of clinical
+// or quiz answers, or bypass ALS/medical command. All effects are
+// purely visual / decorative.
+// ============================================================
+const _RESPECT_KEY_TOTAL    = 'emsq_total_respect_v1';
+const _RESPECT_KEY_LIFETIME = 'emsq_lifetime_respect_earned_v1';
+const _RESPECT_KEY_OWNED    = 'emsq_respect_shop_owned_v1';
+const _RESPECT_KEY_ACTIVE   = 'emsq_respect_shop_active_v1';
+
+// Active state — populated by loadRespectState() at boot.
+const respectState = {
+  totalRespect: 0,
+  lifetimeRespectEarned: 0,
+  owned: {
+    vehicleThemes: [],
+    lightbars: [],
+    unitNumbers: [],
+    titleBadges: [],
+    partnerFrames: [],
+    garageDecor: []
+  },
+  active: {
+    vehicleTheme: 'default',
+    lightbar: 'default',
+    unitNumber: 'default',
+    titleBadge: 'none',
+    partnerFrame: 'default',
+    garageDecor: []
+  }
+};
+
+// Vehicle theme color palettes. Each theme provides explicit body + shade
+// colors for top-down sprites and front-3Q sprites. When `body` is null,
+// the draw function falls back to its own hardcoded default — that's how
+// the 'default' theme leaves each rig with its original paint job
+// (ambo/squad white, rescue red).
+const VEHICLE_THEMES = {
+  default: {
+    label: 'Default',
+    topdown: { body: null,     bodyShade: null     },
+    front3Q: { body: null,     bodyShade: null     }
+  },
+  classicBlueWhite: {
+    label: 'Classic EMS Blue/White',
+    topdown: { body: '#dde7f5', bodyShade: '#b8c8e0' },
+    front3Q: { body: '#dde7f5', bodyShade: '#b8c8e0' }
+  },
+  pittsburghBlackGold: {
+    label: 'Pittsburgh Black/Gold',
+    topdown: { body: '#1a1a1f', bodyShade: '#0a0a14' },
+    front3Q: { body: '#1a1a1f', bodyShade: '#0a0a14' }
+  },
+  cmuTartanRed: {
+    label: 'CMU Tartan Red',
+    topdown: { body: '#a30c1f', bodyShade: '#7a0815' },
+    front3Q: { body: '#a30c1f', bodyShade: '#7a0815' }
+  },
+  nightShiftBlackout: {
+    label: 'Night Shift Blackout',
+    topdown: { body: '#1f2937', bodyShade: '#111827' },
+    front3Q: { body: '#1f2937', bodyShade: '#111827' }
+  },
+  highVisLime: {
+    label: 'High-Vis Lime',
+    topdown: { body: '#a3e635', bodyShade: '#65a30d' },
+    front3Q: { body: '#a3e635', bodyShade: '#65a30d' }
+  },
+  retroOrange: {
+    label: 'Retro Ambulance Orange',
+    topdown: { body: '#f97316', bodyShade: '#c2410c' },
+    front3Q: { body: '#f97316', bodyShade: '#c2410c' }
+  },
+  // ----- Stage 4 expansion themes -----
+  steelCityGunmetal: {
+    label: 'Steel City Gunmetal',
+    topdown: { body: '#4a4f5a', bodyShade: '#2a2e36' },
+    front3Q: { body: '#4a4f5a', bodyShade: '#2a2e36' }
+  },
+  threeRiversBlue: {
+    label: 'Three Rivers Blue',
+    topdown: { body: '#1e3a8a', bodyShade: '#0f1f4c' },
+    front3Q: { body: '#1e3a8a', bodyShade: '#0f1f4c' }
+  },
+  alleghenyForest: {
+    label: 'Allegheny Forest Green',
+    topdown: { body: '#2d4a3e', bodyShade: '#1a2e26' },
+    front3Q: { body: '#2d4a3e', bodyShade: '#1a2e26' }
+  },
+  bumblebeeYellow: {
+    label: 'Bumblebee Yellow',
+    topdown: { body: '#fbbf24', bodyShade: '#b8860b' },
+    front3Q: { body: '#fbbf24', bodyShade: '#b8860b' }
+  },
+  desertTan: {
+    label: 'Desert Tan',
+    topdown: { body: '#c8a55e', bodyShade: '#8a7032' },
+    front3Q: { body: '#c8a55e', bodyShade: '#8a7032' }
+  },
+  arcticChrome: {
+    label: 'Arctic Chrome',
+    topdown: { body: '#e6eef5', bodyShade: '#a8b0bc' },
+    front3Q: { body: '#e6eef5', bodyShade: '#a8b0bc' }
+  }
+};
+
+// Lightbar styles. Each entry provides three layers of color so the
+// lightbar can be themed at every visual level: the rotating glow
+// halo around the rig (drawn by drawVehicle), the actual lit pixels
+// on the roof bar (drawRoofLightbarWide for top-down, drawLightBar
+// for front-3Q), and the bright halo ellipse above each pixel head.
+//
+// Fields:
+//   glowA / glowB     : translucent rgba for the around-rig halo
+//   pixA / pixAoff    : solid hex for the "A side" lit / unlit pixels
+//   pixB / pixBoff    : solid hex for the "B side" lit / unlit pixels
+//   haloA / haloB     : translucent rgba for the per-pixel halo ellipse
+const LIGHTBAR_STYLES = {
+  default: {
+    label: 'Classic Red/Blue',
+    glowA:  'rgba(239, 71, 111, 0.28)',  glowB:  'rgba(17, 138, 178, 0.28)',
+    pixA:   '#ff4d6d',                   pixAoff:'#5a1018',
+    pixB:   '#3aaaee',                   pixBoff:'#0a3a5a',
+    haloA:  'rgba(255, 50, 80, 0.55)',   haloB:  'rgba(60, 170, 240, 0.55)'
+  },
+  allBlue: {
+    label: 'All Blue',
+    glowA:  'rgba(17, 138, 178, 0.32)',  glowB:  'rgba(70, 180, 220, 0.28)',
+    pixA:   '#3aaaee',                   pixAoff:'#0a3a5a',
+    pixB:   '#7fc7f0',                   pixBoff:'#1a4a6e',
+    haloA:  'rgba(60, 170, 240, 0.55)',  haloB:  'rgba(120, 200, 250, 0.55)'
+  },
+  redWhite: {
+    label: 'Red/White Flash',
+    glowA:  'rgba(239, 71, 111, 0.30)',  glowB:  'rgba(245, 245, 245, 0.30)',
+    pixA:   '#ff4d6d',                   pixAoff:'#5a1018',
+    pixB:   '#f5f5f5',                   pixBoff:'#7a7a7a',
+    haloA:  'rgba(255, 50, 80, 0.55)',   haloB:  'rgba(255, 255, 255, 0.55)'
+  },
+  pittsburghGold: {
+    label: 'Pittsburgh Gold Pulse',
+    glowA:  'rgba(251, 191, 36, 0.34)',  glowB:  'rgba(15, 23, 42, 0.32)',
+    pixA:   '#fbbf24',                   pixAoff:'#5a4a10',
+    pixB:   '#1a1a1f',                   pixBoff:'#0a0a14',
+    haloA:  'rgba(251, 191, 36, 0.6)',   haloB:  'rgba(40, 40, 60, 0.55)'
+  },
+  subtleSteady: {
+    label: 'Subtle Steady Flash',
+    glowA:  'rgba(245, 245, 245, 0.22)', glowB:  'rgba(206, 206, 206, 0.22)',
+    pixA:   '#f5f5f5',                   pixAoff:'#7a7a7a',
+    pixB:   '#cecece',                   pixBoff:'#5a5a5a',
+    haloA:  'rgba(255, 255, 255, 0.5)',  haloB:  'rgba(220, 220, 220, 0.4)'
+  },
+  // ----- Stage 4 expansion lightbars -----
+  federalAmber: {
+    label: 'Federal Amber',
+    glowA:  'rgba(251, 191, 36, 0.32)',  glowB:  'rgba(217, 119, 6, 0.28)',
+    pixA:   '#fbbf24',                   pixAoff:'#5e4717',
+    pixB:   '#f59e0b',                   pixBoff:'#5e3a07',
+    haloA:  'rgba(251, 191, 36, 0.6)',   haloB:  'rgba(245, 158, 11, 0.6)'
+  },
+  pulseCyan: {
+    label: 'Pulse Cyan',
+    glowA:  'rgba(34, 211, 238, 0.32)',  glowB:  'rgba(8, 145, 178, 0.28)',
+    pixA:   '#22d3ee',                   pixAoff:'#0a4a55',
+    pixB:   '#0891b2',                   pixBoff:'#06303a',
+    haloA:  'rgba(34, 211, 238, 0.6)',   haloB:  'rgba(8, 145, 178, 0.55)'
+  },
+  honorPurple: {
+    label: 'Honor Purple',
+    glowA:  'rgba(168, 85, 247, 0.32)',  glowB:  'rgba(99, 102, 241, 0.28)',
+    pixA:   '#a855f7',                   pixAoff:'#3a1a5a',
+    pixB:   '#6366f1',                   pixBoff:'#2a2a6a',
+    haloA:  'rgba(168, 85, 247, 0.6)',   haloB:  'rgba(99, 102, 241, 0.55)'
+  },
+  triFlash: {
+    label: 'Red/Blue/Amber Tri',
+    glowA:  'rgba(239, 71, 111, 0.30)',  glowB:  'rgba(251, 191, 36, 0.30)',
+    pixA:   '#ff4d6d',                   pixAoff:'#5a1018',
+    pixB:   '#fbbf24',                   pixBoff:'#5e4717',
+    haloA:  'rgba(255, 50, 80, 0.55)',   haloB:  'rgba(251, 191, 36, 0.55)'
+  },
+  emeraldStorm: {
+    label: 'Emerald Storm',
+    glowA:  'rgba(16, 185, 129, 0.32)',  glowB:  'rgba(6, 95, 70, 0.28)',
+    pixA:   '#10b981',                   pixAoff:'#0a3a2a',
+    pixB:   '#065f46',                   pixBoff:'#062a20',
+    haloA:  'rgba(16, 185, 129, 0.6)',   haloB:  'rgba(6, 95, 70, 0.55)'
+  }
+};
+// Convenience accessor: returns the lightbar style with .a/.b kept as
+// aliases of .glowA/.glowB so any old code that referenced those names
+// keeps working.
+function _expandedLightbar(lb) {
+  if (!lb) return null;
+  return Object.assign({ a: lb.glowA, b: lb.glowB }, lb);
+}
+
+// Unit number labels — display text for the HUD + shift-end + preview.
+const UNIT_NUMBERS = {
+  default:    'Unit 12',
+  medic4:     'Medic 4',
+  squad88:    'Squad 88',
+  rescue7:    'Rescue 7',
+  cmu1:       'CMU 1',
+  emsq911:    'EMSQ-911',
+  // ----- Stage 4 expansion -----
+  medic1:     'Medic 1',
+  engine5:    'Engine 5',
+  truck9:     'Truck 9',
+  mercy1:     'Mercy 1',
+  trauma1:    'Trauma 1',
+  code3:      'Code 3'
+};
+
+// Title badge text — shown under the H1 on the title screen.
+const TITLE_BADGES = {
+  none:           '',
+  rookie:         'Rookie Provider',
+  pittLabReady:   'Pitt Lab Ready',
+  airwayFirst:    'Airway First',
+  sceneSafe:      'Scene Safe',
+  refusalPro:     'Refusal Pro',
+  nremtGrinder:   'NREMT Grinder',
+  // ----- Stage 4 expansion -----
+  codeCompliant:  'Code Compliant',
+  alleghenyPro:   'Allegheny Pro',
+  cardiacCaptain: 'Cardiac Captain',
+  traumaTech:     'Trauma Tech',
+  hotLoader:      'Hot Loader',
+  fieldSurgeon:   'Field Surgeon'
+};
+
+// Partner frame styles — applied as a border color on the partner bubble.
+const PARTNER_FRAMES = {
+  default:           { border: '#ffd166', label: 'Default Yellow' },
+  gold:              { border: '#fbbf24', label: 'Gold Frame' },
+  clinicalPreceptor: { border: '#3b82f6', label: 'Clinical Preceptor Frame' },
+  radioOperator:     { border: '#22d3ee', label: 'Radio Operator Frame' },
+  cemsMentor:        { border: '#ef4444', label: 'CEMS Mentor Frame' },
+  // ----- Stage 4 expansion -----
+  bronze:            { border: '#cd7f32', label: 'Bronze Frame' },
+  silver:            { border: '#c0c0c0', label: 'Silver Frame' },
+  emerald:           { border: '#10b981', label: 'Emerald Frame' },
+  magenta:           { border: '#c026d3', label: 'Magenta Frame' },
+  charcoal:          { border: '#6b7280', label: 'Charcoal Frame' }
+};
+
+// Garage decorations — owned-only in v1 (displayed as small icons on the
+// title-screen lower area when active). Cosmetic placeholders for a
+// future garage screen.
+const GARAGE_DECOR = {
+  coffee:    { icon: '\u2615',                       label: 'Coffee Machine' },
+  manikin:   { icon: '\u{1F468}\u200D\u2695\uFE0F',  label: 'Training Manikin' },
+  map:       { icon: '\u{1F5FA}\uFE0F',              label: 'Wall Map' },
+  trophy:    { icon: '\u{1F3C6}',                    label: 'Trophy Shelf' },
+  ecg:       { icon: '\u{1F4C8}',                    label: 'ECG Monitor Prop' },
+  simLab:    { icon: '\u{1F52C}',                    label: 'Simulation Lab Sign' },
+  // ----- Stage 4 expansion -----
+  bunker:    { icon: '\u{1F9E5}',                    label: 'Bunker Gear' },
+  radios:    { icon: '\u{1F4FB}',                    label: 'Radio Rack' },
+  pennant:   { icon: '\u{1F3F4}',                    label: 'Squad Pennant' },
+  vending:   { icon: '\u{1F37F}',                    label: 'Vending Machine' },
+  plaque:    { icon: '\u{1F396}\uFE0F',              label: 'Award Plaque' },
+  fishtank:  { icon: '\u{1F41F}',                    label: 'Fish Tank' }
+};
+
+// Master shop item catalog. Each entry maps to a category, a specific
+// `applyId` in the category's lookup map, a cost in Respect, and copy.
+const RESPECT_SHOP_ITEMS = [
+  // ----- Vehicle Color Themes -----
+  { id:'theme_default',              category:'vehicleThemes', applyId:'default',             name:'Classic White',                 description:'The standard rig livery you started with.',                          cost:0,   defaultOwned:true  },
+  { id:'theme_classic_blue_white',   category:'vehicleThemes', applyId:'classicBlueWhite',    name:'Classic EMS Blue/White',        description:'A clean EMS-style blue and white vehicle paint theme.',              cost:50,  defaultOwned:false },
+  { id:'theme_pittsburgh_black_gold',category:'vehicleThemes', applyId:'pittsburghBlackGold', name:'Pittsburgh Black/Gold',         description:'Black and gold inspired by the Steel City.',                          cost:100, defaultOwned:false },
+  { id:'theme_cmu_tartan_red',       category:'vehicleThemes', applyId:'cmuTartanRed',        name:'CMU Tartan Red',                description:'Carnegie Mellon red — CMU EMS colors.',                               cost:100, defaultOwned:false },
+  { id:'theme_night_shift_blackout', category:'vehicleThemes', applyId:'nightShiftBlackout',  name:'Night Shift Blackout',          description:'Murdered-out blackout finish for the overnight crew.',                cost:150, defaultOwned:false },
+  { id:'theme_high_vis_lime',        category:'vehicleThemes', applyId:'highVisLime',         name:'High-Vis Lime',                 description:'High-conspicuity lime — visible from a half-mile out.',               cost:150, defaultOwned:false },
+  { id:'theme_retro_orange',         category:'vehicleThemes', applyId:'retroOrange',         name:'Retro Ambulance Orange',        description:'A retro creamsicle paint job from the disco era.',                    cost:200, defaultOwned:false },
+
+  // ----- Lightbar Styles -----
+  { id:'light_default',         category:'lightbars',   applyId:'default',        name:'Classic Red/Blue',         description:'The standard alternating red and blue lightbar glow.',     cost:0,   defaultOwned:true  },
+  { id:'light_all_blue',        category:'lightbars',   applyId:'allBlue',        name:'All Blue',                 description:'Pure blue strobe pattern.',                                cost:75,  defaultOwned:false },
+  { id:'light_red_white',       category:'lightbars',   applyId:'redWhite',       name:'Red/White Flash',          description:'Red and white wig-wag alternation.',                       cost:100, defaultOwned:false },
+  { id:'light_pittsburgh_gold', category:'lightbars',   applyId:'pittsburghGold', name:'Pittsburgh Gold Pulse',    description:'Gold pulse over deep slate.',                              cost:150, defaultOwned:false },
+  { id:'light_subtle_steady',   category:'lightbars',   applyId:'subtleSteady',   name:'Subtle Steady Flash',      description:'A muted, near-white flash for low-key responses.',         cost:150, defaultOwned:false },
+
+  // ----- Custom Unit Numbers -----
+  { id:'unit_default',  category:'unitNumbers', applyId:'default', name:'Unit 12',     description:'The default unit designation.',           cost:0,   defaultOwned:true  },
+  { id:'unit_medic4',   category:'unitNumbers', applyId:'medic4',  name:'Medic 4',     description:'A classic medic-unit designator.',        cost:50,  defaultOwned:false },
+  { id:'unit_squad88',  category:'unitNumbers', applyId:'squad88', name:'Squad 88',    description:'An old-school squad-truck callsign.',     cost:50,  defaultOwned:false },
+  { id:'unit_rescue7',  category:'unitNumbers', applyId:'rescue7', name:'Rescue 7',    description:'A rescue-company callsign.',              cost:75,  defaultOwned:false },
+  { id:'unit_cmu1',     category:'unitNumbers', applyId:'cmu1',    name:'CMU 1',       description:'Carnegie Mellon EMS lead unit.',          cost:75,  defaultOwned:false },
+  { id:'unit_emsq911',  category:'unitNumbers', applyId:'emsq911', name:'EMSQ-911',    description:'A vanity callsign for the dedicated.',    cost:100, defaultOwned:false },
+
+  // ----- Title-Screen Badges -----
+  { id:'badge_none',             category:'titleBadges', applyId:'none',         name:'No Badge',         description:'Hide the badge from the title screen.',                cost:0,   defaultOwned:true  },
+  { id:'badge_rookie',           category:'titleBadges', applyId:'rookie',       name:'Rookie Provider', description:'Marks you as a starting provider.',                    cost:50,  defaultOwned:false },
+  { id:'badge_pitt_lab_ready',   category:'titleBadges', applyId:'pittLabReady', name:'Pitt Lab Ready',  description:'For those who survived the lab simulations.',          cost:100, defaultOwned:false },
+  { id:'badge_airway_first',     category:'titleBadges', applyId:'airwayFirst',  name:'Airway First',    description:'A reminder of the assessment priority.',               cost:100, defaultOwned:false },
+  { id:'badge_scene_safe',       category:'titleBadges', applyId:'sceneSafe',    name:'Scene Safe',      description:'Scene safety is always the first call.',               cost:100, defaultOwned:false },
+  { id:'badge_refusal_pro',      category:'titleBadges', applyId:'refusalPro',   name:'Refusal Pro',     description:'For the AMA documentation specialists.',               cost:150, defaultOwned:false },
+  { id:'badge_nremt_grinder',    category:'titleBadges', applyId:'nremtGrinder', name:'NREMT Grinder',   description:'For grinding the review arcade until you pass.',       cost:200, defaultOwned:false },
+
+  // ----- Partner / Radio Frames -----
+  { id:'frame_default',           category:'partnerFrames', applyId:'default',           name:'Default Frame',           description:'The standard yellow partner-bubble border.',           cost:0,   defaultOwned:true  },
+  { id:'frame_gold',              category:'partnerFrames', applyId:'gold',              name:'Gold Frame',              description:'A warm gold border for the partner bubble.',           cost:100, defaultOwned:false },
+  { id:'frame_clinical_preceptor',category:'partnerFrames', applyId:'clinicalPreceptor', name:'Clinical Preceptor Frame',description:'A teaching-style blue border.',                        cost:150, defaultOwned:false },
+  { id:'frame_radio_operator',    category:'partnerFrames', applyId:'radioOperator',     name:'Radio Operator Frame',    description:'A cyan border evoking the dispatch console.',          cost:150, defaultOwned:false },
+  { id:'frame_cems_mentor',       category:'partnerFrames', applyId:'cemsMentor',        name:'CEMS Mentor Frame',       description:'A bold red CEMS-mentor accent.',                       cost:200, defaultOwned:false },
+
+  // ----- Garage / Station Decorations (owned-only in v1) -----
+  { id:'decor_coffee',  category:'garageDecor', applyId:'coffee',  name:'Coffee Machine',     description:'Display a coffee machine in your station.',           cost:75,  defaultOwned:false },
+  { id:'decor_manikin', category:'garageDecor', applyId:'manikin', name:'Training Manikin',   description:'A practice manikin for the station.',                 cost:100, defaultOwned:false },
+  { id:'decor_map',     category:'garageDecor', applyId:'map',     name:'Wall Map',           description:'A city wall map for the briefing room.',              cost:100, defaultOwned:false },
+  { id:'decor_trophy',  category:'garageDecor', applyId:'trophy',  name:'Trophy Shelf',       description:'A shelf to display your accolades.',                  cost:150, defaultOwned:false },
+  { id:'decor_ecg',     category:'garageDecor', applyId:'ecg',     name:'ECG Monitor Prop',   description:'A retired monitor as decoration.',                    cost:200, defaultOwned:false },
+  { id:'decor_simlab',  category:'garageDecor', applyId:'simLab',  name:'Simulation Lab Sign',description:'A lit "Sim Lab" sign for the wall.',                  cost:250, defaultOwned:false },
+
+  // ===== Stage 4 expansion (doubles the shop catalog) =====
+  // ----- Extra Vehicle Color Themes -----
+  { id:'theme_steel_city_gunmetal',  category:'vehicleThemes', applyId:'steelCityGunmetal',  name:'Steel City Gunmetal',    description:'A gunmetal-gray finish — Pittsburgh after dark.',           cost:120, defaultOwned:false },
+  { id:'theme_three_rivers_blue',    category:'vehicleThemes', applyId:'threeRiversBlue',    name:'Three Rivers Blue',      description:'Deep navy inspired by the Allegheny, Monongahela, and Ohio.',cost:120, defaultOwned:false },
+  { id:'theme_allegheny_forest',     category:'vehicleThemes', applyId:'alleghenyForest',    name:'Allegheny Forest Green', description:'Forest-service green for the rural rotations.',             cost:150, defaultOwned:false },
+  { id:'theme_bumblebee_yellow',     category:'vehicleThemes', applyId:'bumblebeeYellow',    name:'Bumblebee Yellow',       description:'High-vis bumblebee yellow — impossible to miss.',           cost:150, defaultOwned:false },
+  { id:'theme_desert_tan',           category:'vehicleThemes', applyId:'desertTan',          name:'Desert Tan',             description:'Coyote tan — austere and tactical.',                        cost:175, defaultOwned:false },
+  { id:'theme_arctic_chrome',        category:'vehicleThemes', applyId:'arcticChrome',       name:'Arctic Chrome',          description:'A frosted chrome finish, like a winter sunrise.',           cost:200, defaultOwned:false },
+
+  // ----- Extra Lightbar Styles -----
+  { id:'light_federal_amber',  category:'lightbars', applyId:'federalAmber', name:'Federal Amber',          description:'Solid amber strobe — utility / hazard pattern.',        cost:100, defaultOwned:false },
+  { id:'light_pulse_cyan',     category:'lightbars', applyId:'pulseCyan',    name:'Pulse Cyan',             description:'Bright cyan pulses with a turquoise undertone.',        cost:125, defaultOwned:false },
+  { id:'light_honor_purple',   category:'lightbars', applyId:'honorPurple',  name:'Honor Purple',           description:'Purple/indigo memorial pattern.',                       cost:175, defaultOwned:false },
+  { id:'light_tri_flash',      category:'lightbars', applyId:'triFlash',     name:'Red/Amber Tri-Flash',    description:'Red and amber alternation — a fire-rescue blend.',      cost:175, defaultOwned:false },
+  { id:'light_emerald_storm',  category:'lightbars', applyId:'emeraldStorm', name:'Emerald Storm',          description:'Deep green strobe over a forest-pine secondary.',       cost:200, defaultOwned:false },
+
+  // ----- Extra Unit Numbers -----
+  { id:'unit_medic1',  category:'unitNumbers', applyId:'medic1',  name:'Medic 1',  description:'Medic 1 — the lead ALS unit.',                cost:75,  defaultOwned:false },
+  { id:'unit_engine5', category:'unitNumbers', applyId:'engine5', name:'Engine 5', description:'A fire-engine callsign for cross-trained crews.', cost:75,  defaultOwned:false },
+  { id:'unit_truck9',  category:'unitNumbers', applyId:'truck9',  name:'Truck 9',  description:'A truck-company callsign.',                   cost:100, defaultOwned:false },
+  { id:'unit_mercy1',  category:'unitNumbers', applyId:'mercy1',  name:'Mercy 1',  description:'A mercy-flight callsign.',                    cost:100, defaultOwned:false },
+  { id:'unit_trauma1', category:'unitNumbers', applyId:'trauma1', name:'Trauma 1', description:'A trauma-team callsign — Level I bound.',     cost:125, defaultOwned:false },
+  { id:'unit_code3',   category:'unitNumbers', applyId:'code3',   name:'Code 3',   description:'A vanity callsign for the L&S-always crowd.', cost:125, defaultOwned:false },
+
+  // ----- Extra Title Badges -----
+  { id:'badge_code_compliant',  category:'titleBadges', applyId:'codeCompliant',  name:'Code Compliant',  description:'Documentation legend.',                  cost:75,  defaultOwned:false },
+  { id:'badge_allegheny_pro',   category:'titleBadges', applyId:'alleghenyPro',   name:'Allegheny Pro',   description:'For experienced Allegheny County crews.', cost:125, defaultOwned:false },
+  { id:'badge_cardiac_captain', category:'titleBadges', applyId:'cardiacCaptain', name:'Cardiac Captain', description:'ACS, V-fib, and cardiac arrest pros.',   cost:150, defaultOwned:false },
+  { id:'badge_trauma_tech',     category:'titleBadges', applyId:'traumaTech',     name:'Trauma Tech',     description:'For the load-and-go specialists.',       cost:150, defaultOwned:false },
+  { id:'badge_hot_loader',      category:'titleBadges', applyId:'hotLoader',      name:'Hot Loader',      description:'For the rapid-scene crews.',             cost:175, defaultOwned:false },
+  { id:'badge_field_surgeon',   category:'titleBadges', applyId:'fieldSurgeon',   name:'Field Surgeon',   description:'For the cool-under-pressure operators.', cost:200, defaultOwned:false },
+
+  // ----- Extra Partner Frames -----
+  { id:'frame_bronze',   category:'partnerFrames', applyId:'bronze',   name:'Bronze Frame',   description:'A warm bronze accent for the partner pill.',     cost:75,  defaultOwned:false },
+  { id:'frame_silver',   category:'partnerFrames', applyId:'silver',   name:'Silver Frame',   description:'A clean silver accent for the partner pill.',    cost:125, defaultOwned:false },
+  { id:'frame_emerald',  category:'partnerFrames', applyId:'emerald',  name:'Emerald Frame',  description:'A deep green frame — calm and confident.',       cost:150, defaultOwned:false },
+  { id:'frame_magenta',  category:'partnerFrames', applyId:'magenta',  name:'Magenta Frame',  description:'A vivid magenta frame for the bold.',            cost:175, defaultOwned:false },
+  { id:'frame_charcoal', category:'partnerFrames', applyId:'charcoal', name:'Charcoal Frame', description:'A muted charcoal for low-key style.',            cost:200, defaultOwned:false },
+
+  // ----- Extra Garage Decorations -----
+  { id:'decor_bunker',   category:'garageDecor', applyId:'bunker',   name:'Bunker Gear',     description:'A bunker coat + helmet on a wall hook.',          cost:125, defaultOwned:false },
+  { id:'decor_radios',   category:'garageDecor', applyId:'radios',   name:'Radio Rack',      description:'A three-bay charger with handheld radios.',       cost:150, defaultOwned:false },
+  { id:'decor_pennant',  category:'garageDecor', applyId:'pennant',  name:'Squad Pennant',   description:'A red-and-gold squad pennant.',                   cost:150, defaultOwned:false },
+  { id:'decor_vending',  category:'garageDecor', applyId:'vending',  name:'Vending Machine', description:'A snack machine — for the long shifts.',          cost:175, defaultOwned:false },
+  { id:'decor_plaque',   category:'garageDecor', applyId:'plaque',   name:'Award Plaque',    description:'A service-award plaque on the wall.',             cost:200, defaultOwned:false },
+  { id:'decor_fishtank', category:'garageDecor', applyId:'fishtank', name:'Fish Tank',       description:'A small bubbling aquarium for the dayroom.',     cost:250, defaultOwned:false }
+];
+
+// Categories that hold a single equipped item (radio-button style).
+const _RESPECT_SINGLE_SLOT_CATS = ['vehicleThemes','lightbars','unitNumbers','titleBadges','partnerFrames'];
+// Categories that allow multiple equipped items (checkbox style).
+const _RESPECT_MULTI_SLOT_CATS  = ['garageDecor'];
+// Maps category → respectState.active slot name.
+const _RESPECT_ACTIVE_SLOT_MAP = {
+  vehicleThemes: 'vehicleTheme',
+  lightbars:     'lightbar',
+  unitNumbers:   'unitNumber',
+  titleBadges:   'titleBadge',
+  partnerFrames: 'partnerFrame',
+  garageDecor:   'garageDecor'   // array
+};
+
+// Currently-active shop tab in the modal. Persists across re-renders
+// but not across page reloads (intentional — always opens to Vehicle).
+let _respectShopTab = 'vehicleThemes';
+
+// ----- LOAD / SAVE ------------------------------------------------
+function loadRespectState() {
+  // Reset to defaults first so a missing/corrupt key doesn't leave
+  // partial state from a prior load.
+  respectState.totalRespect = 0;
+  respectState.lifetimeRespectEarned = 0;
+  respectState.owned = {
+    vehicleThemes: [], lightbars: [], unitNumbers: [],
+    titleBadges: [], partnerFrames: [], garageDecor: []
+  };
+  respectState.active = {
+    vehicleTheme: 'default', lightbar: 'default', unitNumber: 'default',
+    titleBadge: 'none', partnerFrame: 'default', garageDecor: []
+  };
+  try {
+    const t = localStorage.getItem(_RESPECT_KEY_TOTAL);
+    if (t !== null) respectState.totalRespect = Math.max(0, parseInt(t, 10) || 0);
+  } catch (_e) {}
+  try {
+    const l = localStorage.getItem(_RESPECT_KEY_LIFETIME);
+    if (l !== null) respectState.lifetimeRespectEarned = Math.max(0, parseInt(l, 10) || 0);
+  } catch (_e) {}
+  try {
+    const o = localStorage.getItem(_RESPECT_KEY_OWNED);
+    if (o) {
+      const parsed = JSON.parse(o);
+      if (parsed && typeof parsed === 'object') {
+        Object.keys(respectState.owned).forEach(cat => {
+          if (Array.isArray(parsed[cat])) respectState.owned[cat] = parsed[cat].slice();
+        });
+      }
+    }
+  } catch (_e) {}
+  try {
+    const a = localStorage.getItem(_RESPECT_KEY_ACTIVE);
+    if (a) {
+      const parsed = JSON.parse(a);
+      if (parsed && typeof parsed === 'object') {
+        if (typeof parsed.vehicleTheme === 'string') respectState.active.vehicleTheme = parsed.vehicleTheme;
+        if (typeof parsed.lightbar === 'string')     respectState.active.lightbar = parsed.lightbar;
+        if (typeof parsed.unitNumber === 'string')   respectState.active.unitNumber = parsed.unitNumber;
+        if (typeof parsed.titleBadge === 'string')   respectState.active.titleBadge = parsed.titleBadge;
+        if (typeof parsed.partnerFrame === 'string') respectState.active.partnerFrame = parsed.partnerFrame;
+        if (Array.isArray(parsed.garageDecor))       respectState.active.garageDecor = parsed.garageDecor.slice();
+      }
+    }
+  } catch (_e) {}
+  // Ensure every default-owned item is present (one-time backfill for
+  // upgraded saves). Default-owned items never need to be purchased.
+  RESPECT_SHOP_ITEMS.forEach(item => {
+    if (!item.defaultOwned) return;
+    const list = respectState.owned[item.category];
+    if (list && list.indexOf(item.applyId) === -1) list.push(item.applyId);
+  });
+  // Validate active selections — if an active value points to an item
+  // the player doesn't own (corrupted storage, schema rev), reset it.
+  _RESPECT_SINGLE_SLOT_CATS.forEach(cat => {
+    const slot = _RESPECT_ACTIVE_SLOT_MAP[cat];
+    const cur  = respectState.active[slot];
+    if (cur && cur !== 'default' && cur !== 'none' && respectState.owned[cat].indexOf(cur) === -1) {
+      respectState.active[slot] = (cat === 'titleBadges') ? 'none' : 'default';
+    }
+  });
+  respectState.active.garageDecor = respectState.active.garageDecor.filter(
+    id => respectState.owned.garageDecor.indexOf(id) !== -1
+  );
+}
+function saveRespectState() {
+  try { localStorage.setItem(_RESPECT_KEY_TOTAL,    String(respectState.totalRespect)); } catch (_e) {}
+  try { localStorage.setItem(_RESPECT_KEY_LIFETIME, String(respectState.lifetimeRespectEarned)); } catch (_e) {}
+  try { localStorage.setItem(_RESPECT_KEY_OWNED,    JSON.stringify(respectState.owned)); } catch (_e) {}
+  try { localStorage.setItem(_RESPECT_KEY_ACTIVE,   JSON.stringify(respectState.active)); } catch (_e) {}
+}
+
+// ----- ACTIVE-ITEM ACCESSORS --------------------------------------
+function getActiveVehicleTheme() {
+  const id = (respectState && respectState.active && respectState.active.vehicleTheme) || 'default';
+  return VEHICLE_THEMES[id] || VEHICLE_THEMES.default;
+}
+// Returns explicit { body, bodyShade } for the player's TOP-DOWN sprite,
+// or null when the default theme is active (so the existing draw code
+// keeps its hardcoded colors with zero overhead).
+function getActiveTopDownColors() {
+  const theme = getActiveVehicleTheme();
+  if (!theme || !theme.topdown || theme.topdown.body == null) return null;
+  return { body: theme.topdown.body, bodyShade: theme.topdown.bodyShade };
+}
+// Same idea for the FRONT-3Q preview sprite.
+function getActiveFront3QColors() {
+  const theme = getActiveVehicleTheme();
+  if (!theme || !theme.front3Q || theme.front3Q.body == null) return null;
+  return { body: theme.front3Q.body, bodyShade: theme.front3Q.bodyShade };
+}
+function getActiveLightbarStyle() {
+  const id = (respectState && respectState.active && respectState.active.lightbar) || 'default';
+  return _expandedLightbar(LIGHTBAR_STYLES[id] || LIGHTBAR_STYLES.default);
+}
+function getActiveUnitNumber() {
+  const id = (respectState && respectState.active && respectState.active.unitNumber) || 'default';
+  return UNIT_NUMBERS[id] || UNIT_NUMBERS.default;
+}
+function getActiveTitleBadge() {
+  const id = (respectState && respectState.active && respectState.active.titleBadge) || 'none';
+  return TITLE_BADGES[id] || '';
+}
+function getActivePartnerFrame() {
+  const id = (respectState && respectState.active && respectState.active.partnerFrame) || 'default';
+  return PARTNER_FRAMES[id] || PARTNER_FRAMES.default;
+}
+
+// ----- AWARDING RESPECT -------------------------------------------
+// Hooked into endShift() and gameOver(). Anti-double-count via the
+// per-shift `respectAwardedThisShift` flag, which is reset at every
+// startShift / resume / build-screen transition. If the player resumes
+// a shift after a completion was already cashed, the flag survives via
+// _saveSnapshot below.
+function awardRespectForShift(opts) {
+  opts = opts || {};
+  if (typeof game === 'undefined' || !game) return 0;
+  if (game.respectAwardedThisShift === true) return 0;
+  const earned = Math.max(0, (game.score | 0));
+  game.respectAwardedThisShift = true;
+  // Even a zero-score shift is "paid out" — we just don't write
+  // anything to storage in that case (saves an unnecessary write).
+  if (earned > 0) {
+    respectState.totalRespect          += earned;
+    respectState.lifetimeRespectEarned += earned;
+    try { saveRespectState(); } catch (_e) {}
+  }
+  // Update the SHIFT END row if it exists in the DOM.
+  try {
+    const row    = document.getElementById('se-respect-row');
+    const valEl  = document.getElementById('se-respect-banked');
+    if (row && valEl) {
+      valEl.textContent = '+' + earned;
+      row.style.display = '';
+    }
+  } catch (_e) {}
+  // Banner — show "+N RESPECT BANKED" once per payout. Reuses the
+  // existing stage-banner system; if the result-stamp infra is up,
+  // the banner will queue behind it without overlapping.
+  if (!opts.silent) {
+    try {
+      const text = (earned > 0) ? ('+' + earned + ' RESPECT BANKED')
+                                : 'NO RESPECT EARNED THIS SHIFT';
+      // Delay slightly so the SHIFT COMPLETE stamp lands first.
+      setTimeout(() => {
+        try { if (typeof showBanner === 'function') showBanner(text); } catch (_e) {}
+      }, 2400);
+    } catch (_e) {}
+  }
+  // Refresh the title-screen counter the next time the player sees it.
+  try { _renderTitleRespectDisplay(); } catch (_e) {}
+  return earned;
+}
+
+// ----- BUY / EQUIP ------------------------------------------------
+function buyRespectItem(itemId) {
+  const item = RESPECT_SHOP_ITEMS.find(it => it.id === itemId);
+  if (!item) return { ok: false, reason: 'not_found' };
+  const ownedList = respectState.owned[item.category];
+  if (!ownedList) return { ok: false, reason: 'bad_category' };
+  if (ownedList.indexOf(item.applyId) !== -1) return { ok: false, reason: 'already_owned' };
+  if (respectState.totalRespect < item.cost) return { ok: false, reason: 'insufficient' };
+  respectState.totalRespect -= item.cost;
+  ownedList.push(item.applyId);
+  try { saveRespectState(); } catch (_e) {}
+  try { _renderTitleRespectDisplay(); } catch (_e) {}
+  return { ok: true, item: item };
+}
+function equipRespectItem(itemId) {
+  const item = RESPECT_SHOP_ITEMS.find(it => it.id === itemId);
+  if (!item) return { ok: false, reason: 'not_found' };
+  const ownedList = respectState.owned[item.category];
+  if (!ownedList || ownedList.indexOf(item.applyId) === -1) {
+    return { ok: false, reason: 'not_owned' };
+  }
+  const slot = _RESPECT_ACTIVE_SLOT_MAP[item.category];
+  if (_RESPECT_MULTI_SLOT_CATS.indexOf(item.category) !== -1) {
+    // Multi-slot (garage decor): toggle in/out of the array.
+    const arr = respectState.active[slot];
+    const idx = arr.indexOf(item.applyId);
+    if (idx === -1) arr.push(item.applyId); else arr.splice(idx, 1);
+  } else {
+    respectState.active[slot] = item.applyId;
+  }
+  try { saveRespectState(); } catch (_e) {}
+  // Re-apply visible cosmetics so equip is instant.
+  try { _renderTitleBadge(); } catch (_e) {}
+  try { _renderTitleRespectDisplay(); } catch (_e) {}
+  try { _applyPartnerFrameStyle(); } catch (_e) {}
+  try { _renderHudUnitNumber(); } catch (_e) {}
+  try { updatePreviewCaption(); } catch (_e) {}
+  return { ok: true, item: item };
+}
+
+// ----- TITLE-SCREEN BADGE + RESPECT COUNTER -----------------------
+// The badge + respect counter live inside a shared wrapper row
+// (#title-cosmetic-row) so they sit side-by-side. We show/hide the
+// wrapper based on whether EITHER element has content.
+function _refreshTitleCosmeticRow() {
+  const wrap   = document.getElementById('title-cosmetic-row');
+  const badge  = document.getElementById('title-badge-display');
+  const resp   = document.getElementById('title-respect-display');
+  if (!wrap) return;
+  const badgeOn = badge && badge.style.display !== 'none';
+  const respOn  = resp  && resp.style.display  !== 'none';
+  wrap.style.display = (badgeOn || respOn) ? 'flex' : 'none';
+}
+function _renderTitleBadge() {
+  const el = document.getElementById('title-badge-display');
+  if (!el) return;
+  const text = getActiveTitleBadge();
+  if (text && text.length > 0) {
+    el.textContent = '\u2605 ' + text + ' \u2605';
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+    el.textContent = '';
+  }
+  _refreshTitleCosmeticRow();
+}
+function _renderTitleRespectDisplay() {
+  const wrap = document.getElementById('title-respect-display');
+  const amt  = document.getElementById('title-respect-amount');
+  if (!wrap || !amt) return;
+  amt.textContent = String(respectState.totalRespect | 0);
+  // Show whenever the player has any lifetime respect — it stays visible
+  // even at 0 spendable so the player can see their lifetime exists.
+  if (respectState.lifetimeRespectEarned > 0 || respectState.totalRespect > 0) {
+    wrap.style.display = '';
+  } else {
+    wrap.style.display = 'none';
+  }
+  _refreshTitleCosmeticRow();
+}
+
+// ----- HUD UNIT NUMBER --------------------------------------------
+// Lazily injects a single UNIT row into the HUD above the SCORE row.
+// Hidden when the default unit is active so the HUD stays uncluttered.
+function _renderHudUnitNumber() {
+  const hud = document.getElementById('hud');
+  if (!hud) return;
+  let row = document.getElementById('hud-unit-row');
+  const activeId = (respectState.active && respectState.active.unitNumber) || 'default';
+  if (!row) {
+    row = document.createElement('div');
+    row.id = 'hud-unit-row';
+    row.className = 'keep-during-quiz';
+    row.innerHTML = '<span class="label">UNIT:</span> <span class="val" id="hud-unit"></span>';
+    // Insert just after the ROLE row for visibility.
+    const roleSpan = document.getElementById('hud-role');
+    const roleRow  = roleSpan ? roleSpan.closest('div') : null;
+    if (roleRow && roleRow.parentNode === hud) {
+      hud.insertBefore(row, roleRow.nextSibling);
+    } else {
+      hud.insertBefore(row, hud.firstChild);
+    }
+  }
+  const valEl = document.getElementById('hud-unit');
+  if (valEl) valEl.textContent = getActiveUnitNumber();
+  row.style.display = (activeId === 'default') ? 'none' : '';
+}
+
+// ----- PARTNER BUBBLE FRAME ---------------------------------------
+function _applyPartnerFrameStyle() {
+  const frame = getActivePartnerFrame();
+  if (!frame) return;
+  const color = frame.border;
+  // Speech bubble (already styled previously).
+  const bub = document.getElementById('partner-bubble');
+  if (bub) {
+    bub.style.borderColor = color;
+    bub.style.borderLeftColor = color;
+  }
+  // Stage 4 QOL: also color the PARTNER chat-tab button border so the
+  // frame reads even before the speech bubble has fired. Skip when the
+  // partner tab is the SELECTED one (selected style overrides anyway).
+  const tab = document.getElementById('chat-tab-partner');
+  if (tab && !tab.classList.contains('selected')) {
+    tab.style.borderColor = color;
+    tab.style.color = color;
+  }
+  // Stage 4 QOL: the persistent PARTNER pill in the right panel. Border
+  // color + name color both follow the frame so the cosmetic is visible
+  // every frame of every shift.
+  const pill = document.getElementById('partner-pill');
+  if (pill) {
+    pill.style.borderColor = color;
+    pill.style.boxShadow = '0 0 12px ' + _hexToRgba(color, 0.25);
+  }
+  const pillName = document.getElementById('partner-pill-name');
+  if (pillName) pillName.style.color = color;
+}
+// Helper: convert "#RRGGBB" to "rgba(r,g,b,a)". Returns the input as-is
+// if it's already an rgba/rgb string or not a valid 6-digit hex.
+function _hexToRgba(hex, alpha) {
+  if (typeof hex !== 'string' || hex.length !== 7 || hex[0] !== '#') return hex;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return hex;
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+// Refresh the partner pill content. Called whenever game.partner changes
+// (initPartner, resumeSavedShift, etc.). Idempotent — safe to call any
+// number of times. Shows the pill only when a partner is set.
+function _refreshPartnerPill() {
+  const pill = document.getElementById('partner-pill');
+  const nameEl = document.getElementById('partner-pill-name');
+  if (!pill || !nameEl) return;
+  if (game && game.partner && game.partner.name) {
+    nameEl.textContent = game.partner.name;
+    pill.style.display = 'flex';
+  } else {
+    pill.style.display = 'none';
+  }
+  try { _applyPartnerFrameStyle(); } catch (_e) {}
+}
+
+// ----- SHOP MODAL OPEN/CLOSE + RENDER -----------------------------
+function openRespectShop() {
+  try { renderRespectShop(); } catch (_e) {}
+  const s = document.getElementById('respect-shop-screen');
+  if (s) s.style.display = 'flex';
+}
+function closeRespectShop() {
+  const s = document.getElementById('respect-shop-screen');
+  if (s) s.style.display = 'none';
+  // Clear feedback so it doesn't reappear stale on next open.
+  const fb = document.getElementById('respect-shop-feedback');
+  if (fb) { fb.textContent = ''; fb.style.color = '#06d6a0'; }
+}
+function _setRespectShopTab(tab) {
+  _respectShopTab = tab;
+  // Restyle tab buttons.
+  const tabs = document.querySelectorAll('#respect-shop-tabs .respect-tab');
+  tabs.forEach(b => {
+    const active = (b.getAttribute('data-rtab') === tab);
+    b.style.background = active ? '#ffd166' : '#3d3d5c';
+    b.style.color      = active ? '#1a1a2e' : '#ffd166';
+  });
+  try { renderRespectShop(); } catch (_e) {}
+}
+function _respectShopShowFeedback(msg, color) {
+  const fb = document.getElementById('respect-shop-feedback');
+  if (!fb) return;
+  fb.textContent = msg || '';
+  fb.style.color = color || '#06d6a0';
+  clearTimeout(_respectShopShowFeedback._t);
+  if (msg) {
+    _respectShopShowFeedback._t = setTimeout(() => {
+      try { fb.textContent = ''; } catch (_e) {}
+    }, 2200);
+  }
+}
+function _respectEscape(s) {
+  // Tiny local escaper — the global _quizEscape may not be in scope here.
+  s = String(s == null ? '' : s);
+  return s.replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+}
+function renderRespectShop() {
+  // Update balance header.
+  const sp = document.getElementById('respect-spendable');
+  const lt = document.getElementById('respect-lifetime');
+  if (sp) sp.textContent = (respectState.totalRespect | 0).toLocaleString();
+  if (lt) lt.textContent = (respectState.lifetimeRespectEarned | 0).toLocaleString();
+  // Re-style tabs.
+  const tabs = document.querySelectorAll('#respect-shop-tabs .respect-tab');
+  tabs.forEach(b => {
+    const active = (b.getAttribute('data-rtab') === _respectShopTab);
+    b.style.background = active ? '#ffd166' : '#3d3d5c';
+    b.style.color      = active ? '#1a1a2e' : '#ffd166';
+  });
+  // Render the list for the active tab.
+  const listEl = document.getElementById('respect-shop-list');
+  if (!listEl) return;
+  const items = RESPECT_SHOP_ITEMS.filter(it => it.category === _respectShopTab);
+  const ownedList = respectState.owned[_respectShopTab] || [];
+  const slot = _RESPECT_ACTIVE_SLOT_MAP[_respectShopTab];
+  const isMulti = _RESPECT_MULTI_SLOT_CATS.indexOf(_respectShopTab) !== -1;
+  let html = '';
+  items.forEach(item => {
+    const owned   = ownedList.indexOf(item.applyId) !== -1;
+    const active  = isMulti
+      ? respectState.active[slot].indexOf(item.applyId) !== -1
+      : respectState.active[slot] === item.applyId;
+    let btnHtml;
+    if (active) {
+      btnHtml = '<button class="secondary respect-equip-btn" data-rid="' + _respectEscape(item.id) + '" ' +
+                'style="background:#2a3d2e; color:#06d6a0; border-color:#06d6a0; min-width:80px;">' +
+                (isMulti ? 'EQUIPPED' : 'ACTIVE') + '</button>';
+    } else if (owned) {
+      btnHtml = '<button class="secondary respect-equip-btn" data-rid="' + _respectEscape(item.id) + '" ' +
+                'style="min-width:80px;">EQUIP</button>';
+    } else if (respectState.totalRespect >= item.cost) {
+      btnHtml = '<button class="primary respect-buy-btn" data-rid="' + _respectEscape(item.id) + '" ' +
+                'style="min-width:80px;">BUY</button>';
+    } else {
+      const need = item.cost - respectState.totalRespect;
+      btnHtml = '<button class="secondary" disabled style="opacity:0.55; cursor:not-allowed; min-width:80px;">' +
+                'NEED ' + need + '</button>';
+    }
+    const statusTag = active ? '<span style="color:#06d6a0; font-weight:bold;">' +
+                                (isMulti ? '[EQUIPPED]' : '[ACTIVE]') + '</span>'
+                  : owned   ? '<span style="color:#ffd166;">[OWNED]</span>'
+                  :           '<span style="color:#a8b0c4;">[LOCKED]</span>';
+    const costTag = (item.cost > 0) ? '<span style="color:#ffd166;">' + item.cost + ' Respect</span>'
+                                    : '<span style="color:#a8b0c4;">Free</span>';
+    html +=
+      '<div style="display:flex; align-items:center; gap:12px; padding:10px 6px; ' +
+              'border-bottom:1px dashed #3a3a4e;">' +
+        '<div style="flex:1; min-width:0;">' +
+          '<div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:3px;">' +
+            '<span style="color:#f4f1de; font-weight:bold;">' + _respectEscape(item.name) + '</span>' +
+            statusTag +
+          '</div>' +
+          '<div style="color:#a8b0c4; font-size:11px; line-height:1.45;">' +
+            _respectEscape(item.description) +
+          '</div>' +
+          '<div style="font-family:\'Courier New\',monospace; font-size:10px; ' +
+                  'letter-spacing:1px; margin-top:3px; text-transform:uppercase;">' +
+            costTag +
+          '</div>' +
+        '</div>' +
+        '<div style="flex-shrink:0;">' + btnHtml + '</div>' +
+      '</div>';
+  });
+  listEl.innerHTML = html || '<div style="color:#5a5a6e; font-style:italic;">No items.</div>';
+  // Wire BUY / EQUIP buttons inside the list.
+  listEl.querySelectorAll('.respect-buy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rid = btn.getAttribute('data-rid');
+      const res = buyRespectItem(rid);
+      if (res.ok) {
+        _respectShopShowFeedback('PURCHASED: ' + res.item.name, '#06d6a0');
+        try { renderRespectShop(); } catch (_e) {}
+      } else if (res.reason === 'insufficient') {
+        _respectShopShowFeedback('NOT ENOUGH RESPECT', '#ef476f');
+      } else if (res.reason === 'already_owned') {
+        _respectShopShowFeedback('ALREADY OWNED', '#ffd166');
+        try { renderRespectShop(); } catch (_e) {}
+      } else {
+        _respectShopShowFeedback('PURCHASE FAILED', '#ef476f');
+      }
+    });
+  });
+  listEl.querySelectorAll('.respect-equip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rid = btn.getAttribute('data-rid');
+      const res = equipRespectItem(rid);
+      if (res.ok) {
+        _respectShopShowFeedback('EQUIPPED: ' + res.item.name, '#06d6a0');
+        try { renderRespectShop(); } catch (_e) {}
+      } else {
+        _respectShopShowFeedback('EQUIP FAILED', '#ef476f');
+      }
+    });
+  });
+}
+
+// =====================================================================
+// STAGE 4 QOL — GARAGE INTERIOR (PRE-SHIFT LOBBY)
+// =====================================================================
+// Non-CEMS-squad players spawn INSIDE a garage at shift start instead of
+// on the open street. The garage contains: the player's themed rig (in
+// a parking bay, recolored by the active vehicle theme), an arcade
+// cabinet (same review-quiz access as MEDICAL BAY / AMBULANCE REPAIR),
+// and a trophy shelf displaying any equipped garage decor.
+//
+// CEMS + squad skip this — they already have a full CMU EMS station
+// interior with its own hall, kitchen, etc., so adding a garage on top
+// would be redundant.
+//
+// Architecture: reuses INTERIOR_W / INTERIOR_H / INTERIOR_PAD /
+// _renderInteriorMedic / MEDIC_RADIUS / INTERIOR_WALK_SPEED so the
+// movement + medic sprite feel is identical to medbay/repair. Adds
+// new interaction zones for the rig bay (E to drive out) and reuses
+// INTERIOR_ARCADE_INTERACT for the arcade.
+// =====================================================================
+// Stage 4 QOL: garage-specific layout. We use our own coords (not the
+// shared INTERIOR_ARCADE) so the garage can spread elements horizontally
+// without changing the medbay / repair / CMU EMS interiors.
+//
+//   layout overview (interior coords, 720 × 480):
+//   ┌──────────────────────────────────────────────────────────┐
+//   │ STATION DECOR shelf — spans full width along the top wall │
+//   │ ▼ labels under the plank end ~y=160                       │
+//   │                                                          │
+//   │  [arcade]   [workbench]            [PLAYER RIG bay]      │
+//   │  (left)     (middle-left)          (right side)          │
+//   │                                                          │
+//   │              [medic spawns here]                         │
+//   │                                                          │
+//   │ ▒▒▒▒▒▒▒▒▒▒  garage roll-up door  ▒▒▒▒▒▒▒▒▒▒              │
+//   └──────────────────────────────────────────────────────────┘
+const GARAGE_RIG_BAY = { x: 540, y: 305 };          // right side, well below shelf
+const GARAGE_RIG_INTERACT = { x: 540, y: 305, r: 115 };
+const GARAGE_PLAYER_SPAWN = { x: 310, y: 410 };     // center-low, between arcade + rig
+const GARAGE_ARCADE = { x: 130, y: 300, w: 70, h: 80 };
+const GARAGE_ARCADE_INTERACT = { x: 130, y: 340, r: 42 };
+// Cosmetic workbench (no interaction) — fills the empty middle space.
+const GARAGE_WORKBENCH = { x: 310, y: 270, w: 140, h: 36 };
+
+function _garageRigBlocked(x, y) {
+  // Treat the rig parking bay as a solid AABB so the player can't walk
+  // through their own ambulance. Sized generously (130x80) so the rig
+  // sprite reads as filling the bay.
+  const r = GARAGE_RIG_BAY;
+  return (x > r.x - 65 - MEDIC_RADIUS && x < r.x + 65 + MEDIC_RADIUS &&
+          y > r.y - 40 - MEDIC_RADIUS && y < r.y + 40 + MEDIC_RADIUS);
+}
+function _garageArcadeBlocked(x, y) {
+  // Use the garage-local arcade coords (NOT the shared INTERIOR_ARCADE
+  // which lives near the top wall in other interiors and would clash
+  // with the decor shelf here).
+  const a = GARAGE_ARCADE;
+  return (x > a.x - a.w/2 - MEDIC_RADIUS && x < a.x + a.w/2 + MEDIC_RADIUS &&
+          y > a.y - a.h/2 - MEDIC_RADIUS && y < a.y + a.h/2 + MEDIC_RADIUS);
+}
+function _garageWorkbenchBlocked(x, y) {
+  // Workbench is cosmetic but solid — player walks around it.
+  const w = GARAGE_WORKBENCH;
+  return (x > w.x - w.w/2 - MEDIC_RADIUS && x < w.x + w.w/2 + MEDIC_RADIUS &&
+          y > w.y - w.h/2 - MEDIC_RADIUS && y < w.y + w.h/2 + MEDIC_RADIUS);
+}
+function _garageBlocked(x, y) {
+  return _garageRigBlocked(x, y) || _garageArcadeBlocked(x, y) || _garageWorkbenchBlocked(x, y);
+}
+
+// ----- UPDATE ------------------------------------------------------
+function updateInBuildingGarage(dt) {
+  const interior = game._interior;
+  if (!interior) return;
+  if (game.eDebounce > 0) game.eDebounce = Math.max(0, game.eDebounce - dt);
+  if (interior.modal) {
+    interior.promptKey = null;
+    hideActionPrompt();
+    return;
+  }
+  // 4-axis WASD movement.
+  let dx = 0, dy = 0;
+  if (keys['w'] || keys['arrowup'])    dy -= 1;
+  if (keys['s'] || keys['arrowdown'])  dy += 1;
+  if (keys['a'] || keys['arrowleft'])  dx -= 1;
+  if (keys['d'] || keys['arrowright']) dx += 1;
+  const mag = Math.hypot(dx, dy);
+  if (mag > 0) {
+    dx /= mag; dy /= mag;
+    interior.heading = Math.atan2(dy, dx);
+    const speed = INTERIOR_WALK_SPEED;
+    let nx = interior.px + dx * speed * dt;
+    let ny = interior.py + dy * speed * dt;
+    const minX = INTERIOR_PAD + MEDIC_RADIUS;
+    const maxX = INTERIOR_W - INTERIOR_PAD - MEDIC_RADIUS;
+    const minY = INTERIOR_PAD + MEDIC_RADIUS;
+    const maxY = INTERIOR_H - INTERIOR_PAD - MEDIC_RADIUS;
+    nx = Math.max(minX, Math.min(maxX, nx));
+    ny = Math.max(minY, Math.min(maxY, ny));
+    if (!_garageBlocked(nx, ny)) {
+      interior.px = nx; interior.py = ny;
+    } else if (!_garageBlocked(nx, interior.py)) {
+      interior.px = nx;
+    } else if (!_garageBlocked(interior.px, ny)) {
+      interior.py = ny;
+    }
+    interior.walkBob += dt * 8;
+  }
+  // Proximity prompts: rig bay (drive out) > arcade (play quiz).
+  const px = interior.px, py = interior.py;
+  let key = null;
+  if (distXY(px, py, GARAGE_RIG_INTERACT.x, GARAGE_RIG_INTERACT.y) <= GARAGE_RIG_INTERACT.r) {
+    key = 'rig';
+  } else if (distXY(px, py, GARAGE_ARCADE_INTERACT.x, GARAGE_ARCADE_INTERACT.y)
+               <= GARAGE_ARCADE_INTERACT.r) {
+    key = 'arcade';
+  }
+  interior.promptKey = key;
+  if (key === 'rig') {
+    showActionPrompt('Press E: Start shift');
+  } else if (key === 'arcade') {
+    showActionPrompt('Press E: Play arcade');
+  } else {
+    hideActionPrompt();
+  }
+}
+
+// ----- E-KEY DISPATCH ---------------------------------------------
+function tryDoEActionInGarage() {
+  const interior = game._interior;
+  if (!interior || interior.modal) return;
+  if (interior.promptKey === 'rig')         exitGarageInRig();
+  else if (interior.promptKey === 'arcade') openInteriorArcadeModal();
+}
+
+// ----- ENTER / EXIT -----------------------------------------------
+function enterGarageAtShiftStart() {
+  // Initialize interior state.
+  game._interior = {
+    kind: 'garage',
+    px: GARAGE_PLAYER_SPAWN.x,
+    py: GARAGE_PLAYER_SPAWN.y,
+    heading: -Math.PI / 2,          // facing up into the bay
+    walkBob: 0,
+    promptKey: null,
+    enteredAt: performance.now(),
+    modal: null
+  };
+  game.mode = 'inBuilding';
+  hideActionPrompt();
+  hideSceneSafety();
+  // Hide world-mode HUD bits that don't apply inside a building.
+  // (HUD itself is still useful for ROLE/SCORE/etc; just suppress siren
+  // since the rig is parked in a bay and not running.)
+  if (typeof stopSiren === 'function') stopSiren();
+  // Show banner so the player knows what they're looking at.
+  if (typeof showBanner === 'function') {
+    showBanner('\u2691 GARAGE \u2014 walk to your rig and press E to start');
+  }
+}
+function exitGarageInRig() {
+  if (!game._interior || game._interior.kind !== 'garage') return;
+  const finish = () => {
+    game.mode = 'driving';
+    player.type = game.vehicle;
+    player.x = GRID / 2;
+    player.y = GRID;
+    player.heading = 0;
+    player.speed = 0;
+    game.medic = null;
+    game.parkedVehicle = null;
+    game._interior = null;
+    hideActionPrompt();
+    hideSceneSafety();
+    // Resume siren if the player had it on (won't on shift start, but
+    // covers re-entry edge cases cleanly).
+    if (game.lightsSirens && typeof startSiren === 'function' && !sirenNodes) {
+      try { startSiren(); } catch (_eS) {}
+    }
+    if (typeof showBanner === 'function') showBanner('ON THE ROAD');
+  };
+  // Use the iris transition if available; otherwise jump straight in.
+  if (typeof showIris === 'function') {
+    showIris('in', finish);
+  } else {
+    finish();
+  }
+}
+
+// ----- RENDER -----------------------------------------------------
+function renderInBuildingGarage() {
+  const interior = game._interior;
+  if (!interior) return;
+  const ctx = canvas.getContext('2d');
+  const offX = (viewW - INTERIOR_W) / 2;
+  const offY = (viewH - INTERIOR_H) / 2;
+  // Backdrop
+  ctx.fillStyle = '#0a0a14';
+  ctx.fillRect(0, 0, viewW, viewH);
+  // ----- Floor: concrete with parking-stall paint -----
+  const floor    = '#5a554c';
+  const floorAlt = '#4a463e';
+  const tileSz = 22;
+  for (let ty = 0; ty < INTERIOR_H; ty += tileSz) {
+    for (let tx = 0; tx < INTERIOR_W; tx += tileSz) {
+      const checker = ((tx / tileSz) + (ty / tileSz)) % 2;
+      ctx.fillStyle = checker === 0 ? floor : floorAlt;
+      ctx.fillRect(offX + tx, offY + ty, tileSz, tileSz);
+    }
+  }
+  // Oil spots for atmosphere.
+  ctx.fillStyle = 'rgba(20,15,10,0.55)';
+  for (const spot of [[260,420,14,7],[600,400,12,6],[470,420,11,5]]) {
+    ctx.beginPath();
+    ctx.ellipse(offX + spot[0], offY + spot[1], spot[2], spot[3], 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Parking-stall paint lines around the rig bay (high-vis yellow).
+  // Open on the south side (the rig pulls forward out of the bay through
+  // the garage door); paint lines on left, right, and back only.
+  ctx.strokeStyle = '#fde047';
+  ctx.lineWidth = 3;
+  const bay = GARAGE_RIG_BAY;
+  ctx.beginPath();
+  ctx.moveTo(offX + bay.x - 80, offY + bay.y - 60);
+  ctx.lineTo(offX + bay.x - 80, offY + bay.y + 70);
+  ctx.moveTo(offX + bay.x + 80, offY + bay.y - 60);
+  ctx.lineTo(offX + bay.x + 80, offY + bay.y + 70);
+  ctx.moveTo(offX + bay.x - 80, offY + bay.y - 60);
+  ctx.lineTo(offX + bay.x + 80, offY + bay.y - 60);
+  ctx.stroke();
+  // "BAY 1" stenciled paint behind the rig.
+  ctx.fillStyle = 'rgba(253,224,71,0.55)';
+  ctx.font = 'bold 18px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('BAY 1', offX + bay.x, offY + bay.y - 45);
+  // ----- Walls -----
+  const wallColor = '#3a3a40';
+  const wallTop   = '#5a5a62';
+  ctx.fillStyle = wallColor;
+  ctx.fillRect(offX, offY, INTERIOR_W, INTERIOR_PAD);
+  ctx.fillRect(offX, offY + INTERIOR_H - INTERIOR_PAD, INTERIOR_W, INTERIOR_PAD);
+  ctx.fillRect(offX, offY, INTERIOR_PAD, INTERIOR_H);
+  ctx.fillRect(offX + INTERIOR_W - INTERIOR_PAD, offY, INTERIOR_PAD, INTERIOR_H);
+  ctx.fillStyle = wallTop;
+  ctx.fillRect(offX + INTERIOR_PAD, offY + INTERIOR_PAD - 3, INTERIOR_W - 2*INTERIOR_PAD, 3);
+  // Corrugated metal vertical strips on the top wall.
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let xx = INTERIOR_PAD + 6; xx < INTERIOR_W - INTERIOR_PAD - 6; xx += 8) {
+    ctx.fillRect(offX + xx, offY + 4, 1, INTERIOR_PAD - 6);
+  }
+  // ----- Garage door (south wall, behind the rig) -----
+  ctx.fillStyle = '#2a2a30';
+  ctx.fillRect(offX + bay.x - 90, offY + INTERIOR_H - INTERIOR_PAD,
+               180, INTERIOR_PAD);
+  ctx.strokeStyle = '#1a1a1f';
+  ctx.lineWidth = 1;
+  for (let dy = 4; dy < INTERIOR_PAD - 2; dy += 5) {
+    ctx.beginPath();
+    ctx.moveTo(offX + bay.x - 90, offY + INTERIOR_H - INTERIOR_PAD + dy);
+    ctx.lineTo(offX + bay.x + 90, offY + INTERIOR_H - INTERIOR_PAD + dy);
+    ctx.stroke();
+  }
+  // ----- Trophy shelf (top wall, decor display) -----
+  _renderGarageTrophyShelf(ctx, offX, offY);
+  // ----- Workbench (cosmetic filler in the middle of the floor) -----
+  _renderGarageWorkbench(ctx, offX + GARAGE_WORKBENCH.x, offY + GARAGE_WORKBENCH.y);
+  // ----- Arcade cabinet (lower-left, away from shelf) -----
+  _renderGarageArcade(ctx, offX + GARAGE_ARCADE.x, offY + GARAGE_ARCADE.y);
+  // ----- The rig in the bay -----
+  _renderGarageRig(ctx, offX + bay.x, offY + bay.y);
+  // ----- "STATION GARAGE" sign over the door -----
+  ctx.fillStyle = '#ffd166';
+  ctx.font = 'bold 11px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⚑  STATION GARAGE  ⚑',
+               offX + INTERIOR_W / 2, offY + INTERIOR_PAD / 2);
+  // ----- Medic sprite (the player) -----
+  if (typeof _renderInteriorMedic === 'function') {
+    _renderInteriorMedic(offX + interior.px, offY + interior.py,
+                         interior.heading, interior.walkBob);
+  }
+}
+// Tiny ticker so the arcade screen pulses.
+const _garageTickStart = performance.now();
+function _renderGarageWorkbench(ctx, cx, cy) {
+  // Cosmetic workbench: stainless top, dark legs, a coffee mug + first-aid
+  // kit + helmet on top so the right edge of the floor doesn't read as
+  // empty. Sized to fit between the arcade and the rig bay.
+  ctx.save();
+  const w = GARAGE_WORKBENCH.w, h = GARAGE_WORKBENCH.h;
+  // Legs (front pair visible).
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - w/2 + 3, cy + h/2 - 4, 5, 14);
+  ctx.fillRect(cx + w/2 - 8, cy + h/2 - 4, 5, 14);
+  // Top surface (brushed metal).
+  ctx.fillStyle = '#8a8e96';
+  ctx.fillRect(cx - w/2, cy - h/2, w, h);
+  ctx.fillStyle = '#6a6e76';
+  ctx.fillRect(cx - w/2, cy + h/2 - 3, w, 3);
+  ctx.fillStyle = '#a5a8b0';
+  ctx.fillRect(cx - w/2, cy - h/2, w, 2);
+  // Brushed metal grain lines.
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx - w/2, cy - h/2 + 4 + i * 5);
+    ctx.lineTo(cx + w/2, cy - h/2 + 4 + i * 5);
+    ctx.stroke();
+  }
+  // First-aid kit on the left.
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - w/2 + 6, cy - h/2 - 14, 22, 16);
+  ctx.fillStyle = '#f4f4ee';
+  ctx.fillRect(cx - w/2 + 8, cy - h/2 - 12, 18, 12);
+  ctx.fillStyle = '#c1121f';
+  // Red cross.
+  ctx.fillRect(cx - w/2 + 15, cy - h/2 - 11, 4, 10);
+  ctx.fillRect(cx - w/2 + 11, cy - h/2 - 7, 12, 3);
+  // Coffee mug in the middle.
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 4, cy - h/2 - 11, 10, 11);
+  ctx.fillStyle = '#5a2e10';
+  ctx.fillRect(cx - 3, cy - h/2 - 10, 8, 3);
+  ctx.strokeStyle = '#1a1a1f';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx + 9, cy - h/2 - 6, 3, -Math.PI/2, Math.PI/2);
+  ctx.stroke();
+  // Steam.
+  ctx.strokeStyle = 'rgba(220,220,230,0.55)';
+  ctx.beginPath();
+  ctx.moveTo(cx + 1, cy - h/2 - 13);
+  ctx.bezierCurveTo(cx + 3, cy - h/2 - 16, cx, cy - h/2 - 18, cx + 2, cy - h/2 - 21);
+  ctx.stroke();
+  // Helmet (yellow) on the right.
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath();
+  ctx.ellipse(cx + w/2 - 16, cy - h/2 - 6, 11, 7, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx + w/2 - 27, cy - h/2 - 6, 22, 2);
+  // Helmet stripe.
+  ctx.fillStyle = '#c1121f';
+  ctx.fillRect(cx + w/2 - 20, cy - h/2 - 12, 7, 2);
+  ctx.restore();
+}
+function _renderGarageArcade(ctx, x, y) {
+  const t = (performance.now() - _garageTickStart) / 1000;
+  ctx.save();
+  ctx.translate(x, y);
+  // Cabinet body
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(-30, -40, 60, 80);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(-30, -40, 60, 10);
+  ctx.fillRect(-30, 30, 60, 10);
+  // Screen — pulses cyan.
+  const glow = 0.55 + 0.25 * Math.sin(t * 3);
+  ctx.fillStyle = 'rgba(58, 200, 220, ' + glow.toFixed(2) + ')';
+  ctx.fillRect(-22, -28, 44, 32);
+  ctx.strokeStyle = '#0a0a14';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-22, -28, 44, 32);
+  // ARCADE label
+  ctx.fillStyle = '#ffd166';
+  ctx.font = 'bold 9px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('ARCADE', 0, -34);
+  // Joystick + buttons hint.
+  ctx.fillStyle = '#0a0a14';
+  ctx.beginPath();
+  ctx.arc(-10, 14, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffd166';
+  ctx.fillRect(0, 11, 6, 6);
+  ctx.fillRect(10, 11, 6, 6);
+  ctx.restore();
+}
+function _renderGarageRig(ctx, cx, cy) {
+  // Render the player's vehicle in the bay using the same top-down
+  // draw functions used in the world — so the active theme color
+  // shows up here too. Scaled up 4x so the rig fills the bay.
+  // Stage 4 QOL: shift the sprite slightly DOWN inside the bay so the
+  // rig nose has a clear gap between it and the parking-stall top
+  // stripe (otherwise the front bumper sits right on the paint line).
+  cy += 12;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(4, 4);
+  ctx.rotate(-Math.PI / 2);  // nose pointing south (toward door)
+  // Drop shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(2, 2, 16, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  let themeColors = null;
+  try {
+    const td = getActiveTopDownColors();
+    const lb = getActiveLightbarStyle();
+    if (td || lb) {
+      themeColors = {
+        body:      td ? td.body : null,
+        bodyShade: td ? td.bodyShade : null,
+        lightbar:  lb || null
+      };
+    }
+  } catch (_e) {}
+  const type = (game && game.vehicle) || 'ambo';
+  if (type === 'ambo')   drawAmbo(ctx, true, performance.now() / 1000, themeColors);
+  else if (type === 'squad')  drawSquad(ctx, true, performance.now() / 1000, themeColors);
+  else if (type === 'rescue') drawRescue(ctx, true, performance.now() / 1000, themeColors);
+  ctx.restore();
+  // Unit-number callsign painted in front of the bay.
+  ctx.fillStyle = '#fde047';
+  ctx.font = 'bold 10px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  let unit = 'Unit 12';
+  try { unit = getActiveUnitNumber(); } catch (_eU) {}
+  ctx.fillText(unit.toUpperCase(), cx, cy + 55);
+}
+function _renderGarageTrophyShelf(ctx, offX, offY) {
+  // Stage 4 QOL: wood trophy shelf along the top wall. Decor items are
+  // drawn as proper procedural sprites (not emoji) so they read clearly
+  // and don't overlap. Spread evenly across the available shelf width.
+  const shelfMargin = 80;
+  const shelfX = offX + shelfMargin;
+  const shelfW = INTERIOR_W - 2 * shelfMargin;
+  const shelfY = offY + 38;
+  const shelfTop = shelfY + 78;
+  const shelfH = 7;
+  // Wood plank with edge highlight + shadow.
+  ctx.fillStyle = '#6b4423';
+  ctx.fillRect(shelfX, shelfTop, shelfW, shelfH);
+  ctx.fillStyle = '#8b6033';
+  ctx.fillRect(shelfX, shelfTop, shelfW, 1);
+  ctx.fillStyle = '#3a2210';
+  ctx.fillRect(shelfX, shelfTop + shelfH - 1, shelfW, 1);
+  // Iron brackets.
+  ctx.fillStyle = '#2a2a30';
+  ctx.fillRect(shelfX + 4, shelfTop, 4, 14);
+  ctx.fillRect(shelfX + shelfW - 8, shelfTop, 4, 14);
+  // Section label.
+  ctx.fillStyle = '#a8b0c4';
+  ctx.font = 'bold 9px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('STATION DECOR', shelfX + shelfW / 2, shelfY + 4);
+  // Equipped decor list.
+  let active = [];
+  try { active = (respectState.active.garageDecor || []).slice(); } catch (_e) {}
+  if (active.length === 0) {
+    ctx.fillStyle = '#5a5a6e';
+    ctx.font = 'italic 10px "Courier New", monospace';
+    ctx.fillText('(equip decor in the Respect Shop)',
+                 shelfX + shelfW / 2, shelfY + 44);
+    return;
+  }
+  // Resolve to known decor + spread evenly along the shelf. Each slot
+  // gets a fixed cell width so labels never overlap. Max 6 items.
+  const items = active
+    .map(id => ({ id, decor: (typeof GARAGE_DECOR !== 'undefined') ? GARAGE_DECOR[id] : null }))
+    .filter(it => !!it.decor)
+    .slice(0, 6);
+  if (items.length === 0) return;
+  const slotW = shelfW / items.length;
+  items.forEach((it, i) => {
+    const ix = shelfX + slotW * (i + 0.5);
+    const iy = shelfTop - 4;     // sprite base sits ON the plank
+    _renderDecorSprite(ctx, it.id, ix, iy);
+    // Label below the shelf with truncation if needed.
+    ctx.fillStyle = '#cfc8a8';
+    ctx.font = 'bold 8px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const label = it.decor.label.toUpperCase();
+    // Truncate labels longer than the slot width allows (~10 chars).
+    const maxLen = Math.max(6, Math.floor(slotW / 6));
+    const shown = label.length > maxLen ? label.slice(0, maxLen - 1) + '\u2026' : label;
+    ctx.fillText(shown, ix, shelfTop + shelfH + 4);
+  });
+}
+// ----- DECOR SPRITES ----------------------------------------------
+// Each sprite is drawn at (cx, cy) with its base at cy and centered
+// horizontally on cx. Roughly 28px tall. Procedural — no images.
+function _renderDecorSprite(ctx, id, cx, cy) {
+  switch (id) {
+    case 'coffee':   return _drawCoffeeMachineSprite(ctx, cx, cy);
+    case 'manikin':  return _drawTrainingManikinSprite(ctx, cx, cy);
+    case 'map':      return _drawWallMapSprite(ctx, cx, cy);
+    case 'trophy':   return _drawTrophySprite(ctx, cx, cy);
+    case 'ecg':      return _drawECGMonitorSprite(ctx, cx, cy);
+    case 'simLab':   return _drawSimLabSignSprite(ctx, cx, cy);
+    // Stage 4 expansion sprites
+    case 'bunker':   return _drawBunkerGearSprite(ctx, cx, cy);
+    case 'radios':   return _drawRadioRackSprite(ctx, cx, cy);
+    case 'pennant':  return _drawPennantSprite(ctx, cx, cy);
+    case 'vending':  return _drawVendingMachineSprite(ctx, cx, cy);
+    case 'plaque':   return _drawAwardPlaqueSprite(ctx, cx, cy);
+    case 'fishtank': return _drawFishTankSprite(ctx, cx, cy);
+  }
+}
+function _drawCoffeeMachineSprite(ctx, cx, cy) {
+  // Drip-style coffee maker: dark body, reservoir on top, glass carafe.
+  // Base at cy, total height ~28.
+  ctx.save();
+  // Body
+  ctx.fillStyle = '#2d2d35';
+  ctx.fillRect(cx - 9, cy - 26, 18, 22);
+  // Top reservoir
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 11, cy - 28, 22, 4);
+  // Drip head
+  ctx.fillStyle = '#444';
+  ctx.fillRect(cx - 5, cy - 22, 10, 4);
+  // Brew indicator (red LED)
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(cx - 7, cy - 18, 2, 2);
+  // Glass carafe
+  ctx.fillStyle = 'rgba(180,200,220,0.45)';
+  ctx.fillRect(cx - 6, cy - 14, 12, 10);
+  ctx.strokeStyle = '#1a1a1f';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 6, cy - 14, 12, 10);
+  // Coffee inside
+  ctx.fillStyle = '#5a2e10';
+  ctx.fillRect(cx - 5, cy - 9, 10, 5);
+  // Carafe handle
+  ctx.strokeStyle = '#3a3a40';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx + 6, cy - 12);
+  ctx.quadraticCurveTo(cx + 11, cy - 9, cx + 6, cy - 6);
+  ctx.stroke();
+  // Steam
+  ctx.strokeStyle = 'rgba(220,220,230,0.7)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, cy - 30);
+  ctx.bezierCurveTo(cx, cy - 33, cx - 3, cy - 35, cx - 1, cy - 38);
+  ctx.moveTo(cx + 2, cy - 30);
+  ctx.bezierCurveTo(cx + 4, cy - 33, cx + 1, cy - 35, cx + 3, cy - 38);
+  ctx.stroke();
+  ctx.restore();
+}
+function _drawTrainingManikinSprite(ctx, cx, cy) {
+  // CPR manikin: torso + head on a small platform.
+  ctx.save();
+  // Platform
+  ctx.fillStyle = '#3a2a18';
+  ctx.fillRect(cx - 10, cy - 4, 20, 4);
+  ctx.fillStyle = '#5a3a20';
+  ctx.fillRect(cx - 10, cy - 4, 20, 1);
+  // Torso
+  ctx.fillStyle = '#f5d8a8';
+  ctx.beginPath();
+  ctx.moveTo(cx - 7, cy - 4);
+  ctx.lineTo(cx - 8, cy - 18);
+  ctx.lineTo(cx + 8, cy - 18);
+  ctx.lineTo(cx + 7, cy - 4);
+  ctx.closePath();
+  ctx.fill();
+  // Chest compression target (cross marker)
+  ctx.strokeStyle = '#c1121f';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 3, cy - 11); ctx.lineTo(cx + 3, cy - 11);
+  ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy - 8);
+  ctx.stroke();
+  // Head
+  ctx.fillStyle = '#f5d8a8';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 24, 6, 0, Math.PI * 2);
+  ctx.fill();
+  // Closed eye marks
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 3, cy - 25, 2, 1);
+  ctx.fillRect(cx + 1, cy - 25, 2, 1);
+  // Mouth (slightly open for airway training)
+  ctx.fillStyle = '#7a3a3a';
+  ctx.fillRect(cx - 2, cy - 22, 4, 1);
+  ctx.restore();
+}
+function _drawWallMapSprite(ctx, cx, cy) {
+  // Framed map of a city grid with a route line + pin.
+  ctx.save();
+  // Frame
+  ctx.fillStyle = '#3a2a18';
+  ctx.fillRect(cx - 14, cy - 26, 28, 26);
+  // Map background
+  ctx.fillStyle = '#e3d7b0';
+  ctx.fillRect(cx - 12, cy - 24, 24, 22);
+  // Grid lines
+  ctx.strokeStyle = 'rgba(120,90,60,0.45)';
+  ctx.lineWidth = 0.5;
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx - 12 + i * 6, cy - 24);
+    ctx.lineTo(cx - 12 + i * 6, cy - 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, cy - 24 + i * 5);
+    ctx.lineTo(cx + 12, cy - 24 + i * 5);
+    ctx.stroke();
+  }
+  // Route line
+  ctx.strokeStyle = '#c1121f';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, cy - 6);
+  ctx.lineTo(cx - 4, cy - 6);
+  ctx.lineTo(cx - 4, cy - 14);
+  ctx.lineTo(cx + 6, cy - 14);
+  ctx.lineTo(cx + 6, cy - 20);
+  ctx.stroke();
+  // Pin
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.arc(cx + 6, cy - 20, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1f';
+  ctx.beginPath();
+  ctx.arc(cx + 6, cy - 20, 0.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+function _drawTrophySprite(ctx, cx, cy) {
+  // Gold trophy on a base.
+  ctx.save();
+  // Base
+  ctx.fillStyle = '#3a2a18';
+  ctx.fillRect(cx - 8, cy - 5, 16, 5);
+  ctx.fillStyle = '#5a3a20';
+  ctx.fillRect(cx - 8, cy - 5, 16, 1);
+  // Stem
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(cx - 2, cy - 12, 4, 7);
+  // Cup body
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy - 24);
+  ctx.lineTo(cx + 8, cy - 24);
+  ctx.lineTo(cx + 6, cy - 14);
+  ctx.lineTo(cx - 6, cy - 14);
+  ctx.closePath();
+  ctx.fill();
+  // Cup top rim highlight
+  ctx.fillStyle = '#fde68a';
+  ctx.fillRect(cx - 8, cy - 24, 16, 2);
+  // Handles
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx - 9, cy - 19, 4, -Math.PI/2, Math.PI/2);
+  ctx.moveTo(cx + 9, cy - 23);
+  ctx.arc(cx + 9, cy - 19, 4, Math.PI/2, -Math.PI/2, true);
+  ctx.stroke();
+  // Star on the cup
+  ctx.fillStyle = '#7a4a10';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('\u2605', cx, cy - 19);
+  ctx.restore();
+}
+function _drawECGMonitorSprite(ctx, cx, cy) {
+  // Vitals monitor: square frame, EKG trace, numeric readout.
+  ctx.save();
+  // Stand
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(cx - 2, cy - 6, 4, 6);
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 8, cy - 4, 16, 2);
+  // Monitor case
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 14, cy - 26, 28, 20);
+  ctx.fillStyle = '#2a2a30';
+  ctx.fillRect(cx - 14, cy - 26, 28, 2);
+  // Screen
+  ctx.fillStyle = '#0a1a14';
+  ctx.fillRect(cx - 12, cy - 24, 24, 14);
+  // EKG trace
+  ctx.strokeStyle = '#06d6a0';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(cx - 12, cy - 17);
+  ctx.lineTo(cx - 8,  cy - 17);
+  ctx.lineTo(cx - 6,  cy - 17);
+  ctx.lineTo(cx - 5,  cy - 22);     // R spike
+  ctx.lineTo(cx - 4,  cy - 14);     // S
+  ctx.lineTo(cx - 3,  cy - 17);
+  ctx.lineTo(cx + 2,  cy - 17);
+  ctx.lineTo(cx + 4,  cy - 16);
+  ctx.lineTo(cx + 6,  cy - 17);
+  ctx.lineTo(cx + 12, cy - 17);
+  ctx.stroke();
+  // HR number
+  ctx.fillStyle = '#06d6a0';
+  ctx.font = 'bold 5px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillText('72', cx + 11, cy - 23);
+  ctx.restore();
+}
+function _drawSimLabSignSprite(ctx, cx, cy) {
+  // Illuminated wall sign: yellow box with "SIM LAB" text.
+  ctx.save();
+  // Mount post
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(cx - 1, cy - 8, 2, 8);
+  // Sign body with subtle pulse
+  const t = performance.now() / 1000;
+  const pulse = 0.85 + 0.15 * Math.sin(t * 2);
+  ctx.fillStyle = `rgba(251, 191, 36, ${pulse.toFixed(2)})`;
+  ctx.fillRect(cx - 16, cy - 24, 32, 16);
+  // Black frame
+  ctx.strokeStyle = '#1a1a1f';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 16, cy - 24, 32, 16);
+  // Inner accent line
+  ctx.strokeStyle = 'rgba(220, 150, 20, 0.7)';
+  ctx.strokeRect(cx - 14, cy - 22, 28, 12);
+  // Text
+  ctx.fillStyle = '#1a1a1f';
+  ctx.font = 'bold 8px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SIM LAB', cx, cy - 16);
+  // Glow halo
+  ctx.fillStyle = `rgba(251, 191, 36, ${(0.15 * pulse).toFixed(2)})`;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 16, 22, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+// ----- STAGE 4 EXPANSION DECOR SPRITES -----------------------------
+function _drawBunkerGearSprite(ctx, cx, cy) {
+  // Firefighter bunker coat hanging on a hook: tan body with reflective
+  // stripes, helmet on top.
+  ctx.save();
+  // Hook
+  ctx.strokeStyle = '#3a3a40';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 28, 2.5, 0, Math.PI * 2);
+  ctx.stroke();
+  // Hanger bar (shoulders)
+  ctx.strokeStyle = '#1a1a1f';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 9, cy - 21);
+  ctx.lineTo(cx + 9, cy - 21);
+  ctx.stroke();
+  // Coat body
+  ctx.fillStyle = '#8a6f3a';
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, cy - 22);
+  ctx.lineTo(cx - 12, cy - 4);
+  ctx.lineTo(cx + 12, cy - 4);
+  ctx.lineTo(cx + 10, cy - 22);
+  ctx.closePath();
+  ctx.fill();
+  // Reflective trim stripes
+  ctx.fillStyle = '#f4f4ee';
+  ctx.fillRect(cx - 12, cy - 11, 24, 1.5);
+  ctx.fillRect(cx - 12, cy - 7, 24, 1.5);
+  ctx.fillStyle = '#fde047';
+  ctx.fillRect(cx - 12, cy - 10, 24, 0.5);
+  ctx.fillRect(cx - 12, cy - 6, 24, 0.5);
+  // Front zip line
+  ctx.strokeStyle = '#3a2210';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 20);
+  ctx.lineTo(cx, cy - 4);
+  ctx.stroke();
+  // Helmet on top
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 30, 7, 5, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 8, cy - 30, 16, 1.5);
+  ctx.fillStyle = '#fde047';
+  ctx.fillRect(cx - 4, cy - 33, 8, 1.5);
+  ctx.restore();
+}
+function _drawRadioRackSprite(ctx, cx, cy) {
+  // Three handheld radios charging in a wall-mounted dock. Antennas
+  // poke up from the rack.
+  ctx.save();
+  // Wall mount plate
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(cx - 14, cy - 6, 28, 6);
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 14, cy - 6, 28, 1);
+  // Three radios
+  for (let i = 0; i < 3; i++) {
+    const rx = cx - 10 + i * 10;
+    // Body
+    ctx.fillStyle = '#1a1a1f';
+    ctx.fillRect(rx - 3, cy - 22, 6, 16);
+    // Display LCD (green when on)
+    ctx.fillStyle = '#06d6a0';
+    ctx.fillRect(rx - 2, cy - 20, 4, 3);
+    // Speaker grille
+    ctx.fillStyle = '#3a3a40';
+    ctx.fillRect(rx - 2, cy - 12, 4, 4);
+    // Antenna
+    ctx.strokeStyle = '#1a1a1f';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(rx + 2, cy - 22);
+    ctx.lineTo(rx + 3, cy - 30);
+    ctx.stroke();
+    // Charging LED (one of three pulses)
+    const t = performance.now() / 1000;
+    const on = (Math.sin(t * 2 + i) > 0.3);
+    ctx.fillStyle = on ? '#ef4444' : '#5a1018';
+    ctx.fillRect(rx - 1, cy - 4, 2, 1.5);
+  }
+  ctx.restore();
+}
+function _drawPennantSprite(ctx, cx, cy) {
+  // Triangular squad pennant on a wooden pole. Two-tone with a star.
+  ctx.save();
+  // Pole
+  ctx.fillStyle = '#6b4423';
+  ctx.fillRect(cx - 1, cy - 28, 2, 28);
+  // Finial knob
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 29, 2, 0, Math.PI * 2);
+  ctx.fill();
+  // Pennant triangle (red)
+  ctx.fillStyle = '#c1121f';
+  ctx.beginPath();
+  ctx.moveTo(cx + 1, cy - 27);
+  ctx.lineTo(cx + 20, cy - 22);
+  ctx.lineTo(cx + 1, cy - 17);
+  ctx.closePath();
+  ctx.fill();
+  // Dark accent border at hoist
+  ctx.fillStyle = '#7a0815';
+  ctx.fillRect(cx + 1, cy - 27, 2, 10);
+  // Star emblem on pennant
+  ctx.fillStyle = '#fde047';
+  ctx.font = 'bold 7px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('\u2605', cx + 8, cy - 22);
+  // Subtle wave with second segment (gold band below)
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath();
+  ctx.moveTo(cx + 1, cy - 15);
+  ctx.lineTo(cx + 15, cy - 11);
+  ctx.lineTo(cx + 1, cy - 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+function _drawVendingMachineSprite(ctx, cx, cy) {
+  // Tall red vending machine with a glass display window full of snacks.
+  ctx.save();
+  // Body
+  ctx.fillStyle = '#c1121f';
+  ctx.fillRect(cx - 9, cy - 30, 18, 30);
+  ctx.fillStyle = '#7a0815';
+  ctx.fillRect(cx - 9, cy - 4, 18, 4);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(cx - 9, cy - 30, 18, 2);
+  // Glass window
+  ctx.fillStyle = '#0a1a14';
+  ctx.fillRect(cx - 7, cy - 28, 11, 18);
+  // Snack rows (small colorful blocks behind glass)
+  const snacks = [
+    [-6, -27, '#fde047'], [-3, -27, '#06d6a0'], [0, -27, '#ef4444'],
+    [-6, -23, '#a855f7'], [-3, -23, '#fb923c'], [0, -23, '#3aaaee'],
+    [-6, -19, '#84cc16'], [-3, -19, '#ec4899'], [0, -19, '#fbbf24'],
+    [-6, -15, '#22d3ee'], [-3, -15, '#f5f5f5'], [0, -15, '#c2410c']
+  ];
+  for (const s of snacks) {
+    ctx.fillStyle = s[2];
+    ctx.fillRect(cx + s[0], cy + s[1], 2, 2.5);
+  }
+  // Buttons keypad to the right
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx + 5, cy - 28, 4, 14);
+  ctx.fillStyle = '#a8b0c4';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(cx + 5.5, cy - 27 + i * 3.5, 3, 2);
+  }
+  // Coin slot
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx + 5.5, cy - 12, 3, 1);
+  // Dispense tray
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 7, cy - 8, 14, 3);
+  ctx.restore();
+}
+function _drawAwardPlaqueSprite(ctx, cx, cy) {
+  // Wooden plaque with a metal nameplate and a star medal.
+  ctx.save();
+  // Wood backing
+  ctx.fillStyle = '#6b4423';
+  ctx.fillRect(cx - 13, cy - 22, 26, 22);
+  // Wood grain edge
+  ctx.fillStyle = '#8b6033';
+  ctx.fillRect(cx - 13, cy - 22, 26, 1.5);
+  ctx.fillStyle = '#3a2210';
+  ctx.fillRect(cx - 13, cy - 1.5, 26, 1.5);
+  // Metal nameplate
+  ctx.fillStyle = '#c0c0c0';
+  ctx.fillRect(cx - 10, cy - 8, 20, 5);
+  ctx.fillStyle = '#a8a8a8';
+  ctx.fillRect(cx - 10, cy - 4, 20, 1);
+  // Engraved text
+  ctx.fillStyle = '#1a1a1f';
+  ctx.font = 'bold 4px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('EMS SERVICE', cx, cy - 5.5);
+  // Star medal (gold, ribboned)
+  ctx.fillStyle = '#1d4ed8';
+  ctx.fillRect(cx - 3, cy - 22, 6, 5);
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(cx - 3, cy - 17, 3, 5);
+  ctx.fillStyle = '#f5f5f5';
+  ctx.fillRect(cx, cy - 17, 3, 5);
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('\u2605', cx, cy - 13);
+  ctx.restore();
+}
+function _drawFishTankSprite(ctx, cx, cy) {
+  // Small rectangular aquarium: blue water with bubbles, two fish, gravel.
+  ctx.save();
+  const t = performance.now() / 1000;
+  // Stand
+  ctx.fillStyle = '#3a2a18';
+  ctx.fillRect(cx - 14, cy - 4, 28, 4);
+  // Tank frame
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx - 14, cy - 22, 28, 18);
+  // Water
+  ctx.fillStyle = '#22d3ee';
+  ctx.fillRect(cx - 12, cy - 20, 24, 14);
+  ctx.fillStyle = 'rgba(8, 145, 178, 0.5)';
+  ctx.fillRect(cx - 12, cy - 14, 24, 8);
+  // Gravel
+  ctx.fillStyle = '#8b6033';
+  ctx.fillRect(cx - 12, cy - 8, 24, 2);
+  // Plant
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy - 6);
+  ctx.quadraticCurveTo(cx - 7, cy - 12, cx - 8, cy - 16);
+  ctx.quadraticCurveTo(cx - 9, cy - 12, cx - 10, cy - 6);
+  ctx.fill();
+  // Two fish (one orange, one yellow), gently moving
+  const wob = Math.sin(t * 1.2) * 2;
+  ctx.fillStyle = '#fb923c';
+  ctx.beginPath();
+  ctx.ellipse(cx - 1 + wob, cy - 16, 3, 1.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1f';
+  ctx.fillRect(cx + 1 + wob, cy - 16.5, 0.8, 0.8);  // eye
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath();
+  ctx.ellipse(cx + 5 - wob, cy - 12, 2.5, 1.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Bubbles
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  const bubY = ((t * 8) % 14);
+  ctx.beginPath();
+  ctx.arc(cx + 10, cy - 8 - bubY, 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 9, cy - 8 - ((bubY + 5) % 14), 0.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+// =====================================================================
+// END GARAGE INTERIOR
+// =====================================================================
+
+// ----- INIT WIRING ------------------------------------------------
+function _respectShopInit() {
+  // Load persisted state.
+  try { loadRespectState(); } catch (_e) {}
+  // Render anything that depends on state at boot.
+  try { _renderTitleBadge(); } catch (_e) {}
+  try { _renderTitleRespectDisplay(); } catch (_e) {}
+  try { _applyPartnerFrameStyle(); } catch (_e) {}
+  // Wire buttons.
+  const tBtn = document.getElementById('title-respect-shop-btn');
+  if (tBtn) tBtn.addEventListener('click', openRespectShop);
+  const pBtn = document.getElementById('pause-respect-shop-btn');
+  if (pBtn) pBtn.addEventListener('click', openRespectShop);
+  const sBtn = document.getElementById('se-respect-shop-btn');
+  if (sBtn) sBtn.addEventListener('click', openRespectShop);
+  const backBtn = document.getElementById('respect-shop-back-btn');
+  if (backBtn) backBtn.addEventListener('click', closeRespectShop);
+  // Title-screen respect counter doubles as a shop shortcut.
+  const trd = document.getElementById('title-respect-display');
+  if (trd) trd.addEventListener('click', openRespectShop);
+  // Tab switching.
+  document.querySelectorAll('#respect-shop-tabs .respect-tab').forEach(b => {
+    b.addEventListener('click', () => {
+      const t = b.getAttribute('data-rtab');
+      if (t) _setRespectShopTab(t);
+    });
+  });
+}
+// ============================================================
+// END RESPECT SHOP
+// ============================================================
 function boot() {
   initCanvas();
   setupSelect();
   setupChat();
   renderHP();
   renderCrewIndicator();
+  // Stage 4 QOL: initialize the persistent Respect Shop state, hook up
+  // shop buttons, and apply any equipped cosmetics. Called after
+  // setupSelect so all the DOM elements + their other handlers exist.
+  try { _respectShopInit(); } catch (_eRS) {}
   requestAnimationFrame(loop);
   // Stage 1.6: play the startup boot animation. The game loop and select
   // setup are already wired up; the overlay just paints over everything
